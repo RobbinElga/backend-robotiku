@@ -1,0 +1,550 @@
+openapi: 3.0.3
+info:
+  title: Robotiku — Landing CMS API
+  version: "1.0.0"
+  description: >
+    API untuk mengelola konten landing page robotiku.id secara dinamis (CMS).
+    Tim frontend memakai endpoint GET (publik) untuk merender halaman, dan
+    panel internal memakai endpoint PUT/POST (terproteksi) untuk mengubah konten.
+
+    Semua response memakai envelope standar:
+    `{ "status": boolean, "data": any, "message": string }`.
+  contact:
+    name: Tim Backend Robotiku
+    email: dev@robotiku.id
+
+servers:
+  - url: https://api.robotiku.id/api/v1
+    description: Produksi
+  - url: http://localhost:8000/api/v1
+    description: Lokal / development
+
+tags:
+  - name: Landing (Publik)
+    description: Diakses tanpa autentikasi — dipakai tim frontend untuk render.
+  - name: Landing (Admin)
+    description: Butuh token Super Admin / Admin — untuk mengubah konten.
+  - name: Artikel (Publik)
+    description: >
+      Artikel yang sudah dipublish — dipakai landing page (section "Artikel & Tips")
+      dan halaman /artikel. Read-only, tanpa autentikasi.
+
+paths:
+  /landing:
+    get:
+      tags: [Landing (Publik)]
+      summary: Ambil seluruh konten landing
+      description: Mengembalikan map { section: content } untuk semua section yang ada.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/LandingMap"
+              example:
+                status: true
+                message: Konten landing page.
+                data:
+                  hero:
+                    badge: "#1 Kelas Robotik Anak"
+                    title: "Belajar Robotik Jadi Seru!"
+                    subtitle: "Bantu anak Anda mengembangkan kreativitas..."
+                    primary_cta: { label: "Daftar Sekarang", href: "/daftar" }
+                    secondary_cta: { label: "Lihat Program", href: "#program" }
+                    image_url: "/images/hero-anak.jpg"
+                    stat: { value: "500+", label: "Siswa Telah Bergabung" }
+
+  /landing/{section}:
+    get:
+      tags: [Landing (Publik)]
+      summary: Ambil satu section
+      parameters:
+        - $ref: "#/components/parameters/Section"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          section: { type: string, example: hero }
+                          content:
+                            $ref: "#/components/schemas/SectionContent"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    put:
+      tags: [Landing (Admin)]
+      summary: Perbarui satu section
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Section"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  $ref: "#/components/schemas/SectionContent"
+            examples:
+              hero:
+                summary: Update section hero
+                value:
+                  content:
+                    badge: "#1 Kelas Robotik Anak"
+                    title: "Belajar Robotik Jadi Seru!"
+                    subtitle: "Kelas robotika interaktif untuk anak."
+                    primary_cta: { label: "Daftar Sekarang", href: "/daftar" }
+                    secondary_cta: { label: "Lihat Program", href: "#program" }
+                    image_url: "/storage/landing/abc.webp"
+                    stat: { value: "500+", label: "Siswa Telah Bergabung" }
+      responses:
+        "200":
+          description: Berhasil diperbarui
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          section: { type: string }
+                          content: { $ref: "#/components/schemas/SectionContent" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /landing-upload:
+    post:
+      tags: [Landing (Admin)]
+      summary: Upload gambar (hero, galeri, dll)
+      description: >
+        Mengunggah gambar JPG/PNG (maks 5MB). Server mengonversi ke WebP dan
+        mengembalikan URL publik yang dapat dipasang ke field `*_url`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          url:  { type: string, example: "http://localhost:8000/storage/landing/abc.webp" }
+                          path: { type: string, example: "landing/abc.webp" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationError" }
+
+  /artikel:
+    get:
+      tags: [Artikel (Publik)]
+      summary: Daftar artikel terpublish (paginated)
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema: { type: string }
+          description: Filter berdasarkan kategori.
+        - name: per_page
+          in: query
+          required: false
+          schema: { type: integer, default: 9 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: "#/components/schemas/Paginator"
+                          - type: object
+                            properties:
+                              data:
+                                type: array
+                                items: { $ref: "#/components/schemas/ArticleListItem" }
+              example:
+                status: true
+                message: Artikel publik.
+                data:
+                  current_page: 1
+                  per_page: 9
+                  total: 1
+                  data:
+                    - id: 1
+                      title: "Kenapa Anak Perlu Belajar Coding Sejak Dini?"
+                      slug: "kenapa-anak-perlu-belajar-coding"
+                      category: "Tips Belajar"
+                      cover_url: "http://localhost:8000/storage/articles/abc.webp"
+                      published_at: "2026-06-12T08:00:00.000000Z"
+
+  /artikel/{slug}:
+    get:
+      tags: [Artikel (Publik)]
+      summary: Detail artikel berdasarkan slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { $ref: "#/components/schemas/ArticleDetail" }
+        "404":
+          description: Artikel tidak ditemukan / belum publish
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Envelope" }
+              example: { status: false, data: null, message: "Artikel tidak ditemukan." }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >
+        Token Sanctum dari `POST /auth/login` (role super_admin / admin).
+        Kirim sebagai header `Authorization: Bearer <token>`.
+
+  parameters:
+    Section:
+      name: section
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [navbar, hero, mitra, about, programs, achievements, testimonials, gallery, cta, contact]
+      description: Nama section landing.
+
+  responses:
+    NotFound:
+      description: Section tidak dikenal
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Envelope" }
+          example: { status: false, data: null, message: "Section tidak dikenal." }
+    Unauthorized:
+      description: Token tidak ada / tidak valid
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Envelope" }
+          example: { status: false, data: null, message: "Unauthenticated." }
+    Forbidden:
+      description: Role tidak diizinkan (bukan admin/super_admin)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Envelope" }
+          example: { status: false, data: null, message: "Akses ditolak: role tidak diizinkan." }
+    ValidationError:
+      description: Payload tidak valid
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message: { type: string }
+              errors:
+                type: object
+                additionalProperties:
+                  type: array
+                  items: { type: string }
+          example:
+            message: "The content.title field is required."
+            errors:
+              content.title: ["The content.title field is required."]
+
+  schemas:
+    Envelope:
+      type: object
+      properties:
+        status:  { type: boolean }
+        data:    {}
+        message: { type: string }
+
+    LandingMap:
+      type: object
+      description: Map section → content.
+      properties:
+        navbar:       { $ref: "#/components/schemas/NavbarContent" }
+        hero:         { $ref: "#/components/schemas/HeroContent" }
+        mitra:        { $ref: "#/components/schemas/MitraContent" }
+        about:        { $ref: "#/components/schemas/AboutContent" }
+        programs:     { $ref: "#/components/schemas/ProgramsContent" }
+        achievements: { $ref: "#/components/schemas/AchievementsContent" }
+        testimonials: { $ref: "#/components/schemas/TestimonialsContent" }
+        gallery:      { $ref: "#/components/schemas/GalleryContent" }
+        cta:          { $ref: "#/components/schemas/CtaContent" }
+        contact:      { $ref: "#/components/schemas/ContactContent" }
+
+    SectionContent:
+      description: >
+        Bentuk `content` bergantung pada section. Lihat skema masing-masing:
+        NavbarContent, HeroContent, MitraContent, AboutContent, ProgramsContent,
+        AchievementsContent, TestimonialsContent, GalleryContent, CtaContent, ContactContent.
+      oneOf:
+        - $ref: "#/components/schemas/NavbarContent"
+        - $ref: "#/components/schemas/HeroContent"
+        - $ref: "#/components/schemas/MitraContent"
+        - $ref: "#/components/schemas/AboutContent"
+        - $ref: "#/components/schemas/ProgramsContent"
+        - $ref: "#/components/schemas/AchievementsContent"
+        - $ref: "#/components/schemas/TestimonialsContent"
+        - $ref: "#/components/schemas/GalleryContent"
+        - $ref: "#/components/schemas/CtaContent"
+        - $ref: "#/components/schemas/ContactContent"
+
+    LinkItem:
+      type: object
+      properties:
+        label: { type: string, maxLength: 40 }
+        href:  { type: string, maxLength: 200 }
+
+    NavbarContent:
+      type: object
+      required: [links]
+      properties:
+        links:
+          type: array
+          items: { $ref: "#/components/schemas/LinkItem" }
+        cta_label: { type: string, maxLength: 40 }
+
+    HeroContent:
+      type: object
+      required: [title]
+      properties:
+        badge:    { type: string, maxLength: 100 }
+        title:    { type: string, maxLength: 200 }
+        subtitle: { type: string, maxLength: 500 }
+        primary_cta:   { $ref: "#/components/schemas/LinkItem" }
+        secondary_cta: { $ref: "#/components/schemas/LinkItem" }
+        image_url: { type: string, maxLength: 300 }
+        stat:
+          type: object
+          properties:
+            value: { type: string, maxLength: 50 }
+            label: { type: string, maxLength: 100 }
+
+    MitraContent:
+      type: object
+      properties:
+        caption: { type: string, maxLength: 150 }
+
+    AboutContent:
+      type: object
+      required: [title, paragraphs]
+      properties:
+        badge: { type: string, maxLength: 100 }
+        title: { type: string, maxLength: 200 }
+        paragraphs:
+          type: array
+          items: { type: string, maxLength: 1000 }
+        highlights:
+          type: array
+          items:
+            type: object
+            required: [icon, title]
+            properties:
+              icon:  { type: string, maxLength: 40 }
+              title: { type: string, maxLength: 60 }
+              desc:  { type: string, maxLength: 150 }
+
+    ProgramItem:
+      type: object
+      required: [id, icon, title]
+      properties:
+        id:    { type: string, maxLength: 50 }
+        icon:  { type: string, maxLength: 40, description: "Nama ikon (mis. bot, cpu, code)" }
+        age:   { type: string, maxLength: 50 }
+        title: { type: string, maxLength: 80 }
+        desc:  { type: string, maxLength: 400 }
+        points:
+          type: array
+          items: { type: string, maxLength: 80 }
+        featured: { type: boolean }
+
+    ProgramsContent:
+      type: object
+      required: [title, items]
+      properties:
+        title:    { type: string, maxLength: 200 }
+        subtitle: { type: string, maxLength: 300 }
+        items:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/ProgramItem" }
+
+    AchievementsContent:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, maxLength: 200 }
+        desc:  { type: string, maxLength: 500 }
+        items:
+          type: array
+          items:
+            type: object
+            required: [icon, title]
+            properties:
+              icon:  { type: string, maxLength: 40 }
+              title: { type: string, maxLength: 120 }
+              desc:  { type: string, maxLength: 400 }
+
+    TestimonialsContent:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, maxLength: 200 }
+        desc:  { type: string, maxLength: 300 }
+        items:
+          type: array
+          items:
+            type: object
+            required: [name, rating, text]
+            properties:
+              name:     { type: string, maxLength: 80 }
+              role:     { type: string, maxLength: 120 }
+              initials: { type: string, maxLength: 4 }
+              rating:   { type: number, minimum: 0, maximum: 5 }
+              text:     { type: string, maxLength: 500 }
+
+    GalleryContent:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, maxLength: 200 }
+        desc:  { type: string, maxLength: 300 }
+        main:
+          type: object
+          properties:
+            image_url: { type: string, maxLength: 300 }
+            caption:   { type: string, maxLength: 120 }
+        tiles:
+          type: array
+          items:
+            type: object
+            required: [type]
+            properties:
+              type:      { type: string, enum: [image, text] }
+              image_url: { type: string, maxLength: 300 }
+              title:     { type: string, maxLength: 120 }
+              desc:      { type: string, maxLength: 200 }
+
+    CtaContent:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string, maxLength: 200 }
+        desc:  { type: string, maxLength: 300 }
+        partner:
+          type: object
+          properties:
+            title: { type: string, maxLength: 120 }
+            desc:  { type: string, maxLength: 300 }
+        trial:
+          type: object
+          properties:
+            title: { type: string, maxLength: 120 }
+            desc:  { type: string, maxLength: 300 }
+        admins:
+          type: array
+          items:
+            type: object
+            required: [label, phone]
+            properties:
+              label: { type: string, maxLength: 80 }
+              phone: { type: string, maxLength: 20, description: "Format internasional, mis. 6281234567890" }
+
+    ContactContent:
+      type: object
+      properties:
+        tagline:  { type: string, maxLength: 300 }
+        address:  { type: string, maxLength: 300 }
+        phone:    { type: string, maxLength: 30 }
+        email:    { type: string, format: email, maxLength: 120 }
+        whatsapp: { type: string, maxLength: 20 }
+        socials:
+          type: array
+          items:
+            type: object
+            required: [type, url]
+            properties:
+              type: { type: string, maxLength: 30, description: "facebook | instagram | youtube | tiktok | dll" }
+              url:  { type: string, maxLength: 200 }
+
+    Paginator:
+      type: object
+      description: Pembungkus paginasi standar Laravel.
+      properties:
+        current_page: { type: integer, example: 1 }
+        per_page:     { type: integer, example: 9 }
+        total:        { type: integer, example: 25 }
+        last_page:    { type: integer, example: 3 }
+        next_page_url: { type: string, nullable: true }
+        prev_page_url: { type: string, nullable: true }
+
+    ArticleListItem:
+      type: object
+      properties:
+        id:           { type: integer }
+        title:        { type: string }
+        slug:         { type: string }
+        category:     { type: string, nullable: true }
+        cover_url:    { type: string, nullable: true, description: "URL gambar cover (WebP) atau null." }
+        published_at: { type: string, format: date-time, nullable: true }
+
+    ArticleDetail:
+      allOf:
+        - $ref: "#/components/schemas/ArticleListItem"
+        - type: object
+          properties:
+            content: { type: string, description: "Isi artikel (HTML dari rich text editor)." }

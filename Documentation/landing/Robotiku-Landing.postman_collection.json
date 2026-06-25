@@ -1,0 +1,172 @@
+{
+  "info": {
+    "name": "Robotiku — Landing API",
+    "description": "Koleksi API halaman landing robotiku.id: konten CMS (read + admin) dan artikel publik.\n\nSetup cepat:\n1. Pilih environment / set variabel `baseUrl` (default http://localhost:8000/api/v1).\n2. Jalankan request 'Login (dapatkan token)' di folder Auth — token otomatis tersimpan ke variabel `token`.\n3. Request admin (PUT/upload) otomatis pakai Bearer token.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000/api/v1", "type": "string" },
+    { "key": "token", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (dapatkan token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Simpan token ke variabel koleksi agar request admin otomatis terautentikasi",
+                  "const res = pm.response.json();",
+                  "if (res && res.data && res.data.token) {",
+                  "  pm.collectionVariables.set('token', res.data.token);",
+                  "  console.log('Token tersimpan.');",
+                  "}",
+                  "pm.test('status 200', () => pm.response.code === 200);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin@robotiku.id\",\n  \"password\": \"password\"\n}"
+            },
+            "description": "Login sebagai Super Admin / Admin. Token disimpan otomatis ke variabel {{token}}."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Landing (Publik)",
+      "item": [
+        {
+          "name": "GET semua section",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/landing", "host": ["{{baseUrl}}"], "path": ["landing"] },
+            "description": "Mengembalikan map { section: content } untuk semua section."
+          }
+        },
+        {
+          "name": "GET satu section",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/landing/hero",
+              "host": ["{{baseUrl}}"],
+              "path": ["landing", ":section"],
+              "variable": [
+                { "key": "section", "value": "hero", "description": "navbar|hero|mitra|about|programs|achievements|testimonials|gallery|cta|contact" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Landing (Admin)",
+      "item": [
+        {
+          "name": "PUT update section (hero)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/landing/hero",
+              "host": ["{{baseUrl}}"],
+              "path": ["landing", ":section"],
+              "variable": [{ "key": "section", "value": "hero" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": {\n    \"badge\": \"#1 Kelas Robotik Anak\",\n    \"title\": \"Belajar Robotik Jadi Seru!\",\n    \"subtitle\": \"Kelas robotika interaktif untuk anak.\",\n    \"primary_cta\": { \"label\": \"Daftar Sekarang\", \"href\": \"/daftar\" },\n    \"secondary_cta\": { \"label\": \"Lihat Program\", \"href\": \"#program\" },\n    \"image_url\": \"/storage/landing/hero.webp\",\n    \"stat\": { \"value\": \"500+\", \"label\": \"Siswa Telah Bergabung\" }\n  }\n}"
+            },
+            "description": "Update konten section. Butuh token Admin/Super Admin. Server memvalidasi sesuai skema section."
+          }
+        },
+        {
+          "name": "PUT update section (programs)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/landing/programs",
+              "host": ["{{baseUrl}}"],
+              "path": ["landing", ":section"],
+              "variable": [{ "key": "section", "value": "programs" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": {\n    \"title\": \"Program Pilihan Untuk Setiap Usia\",\n    \"subtitle\": \"Kurikulum berjenjang.\",\n    \"items\": [\n      { \"id\": \"robo-kids\", \"icon\": \"bot\", \"age\": \"Usia 5-7 Tahun\", \"title\": \"Robo Kids\", \"desc\": \"Tanpa layar.\", \"points\": [\"Motorik halus\", \"Pengenalan pola\"], \"featured\": false },\n      { \"id\": \"iot-junior\", \"icon\": \"cpu\", \"age\": \"Usia 8-10 Tahun\", \"title\": \"IoT Junior\", \"desc\": \"Mikrokontroler dasar.\", \"points\": [\"Rangkaian listrik\"], \"featured\": true }\n    ]\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "POST upload gambar",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/landing-upload", "host": ["{{baseUrl}}"], "path": ["landing-upload"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "image", "type": "file", "src": [], "description": "JPG/PNG maks 5MB. Pilih file di tab Body." }
+              ]
+            },
+            "description": "Upload gambar → balikin { url, path }. Pakai url untuk mengisi field *_url di section."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Artikel (Publik)",
+      "item": [
+        {
+          "name": "GET daftar artikel",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/artikel?per_page=9",
+              "host": ["{{baseUrl}}"],
+              "path": ["artikel"],
+              "query": [
+                { "key": "per_page", "value": "9" },
+                { "key": "category", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET detail artikel by slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/artikel/kenapa-anak-perlu-belajar-coding",
+              "host": ["{{baseUrl}}"],
+              "path": ["artikel", ":slug"],
+              "variable": [{ "key": "slug", "value": "kenapa-anak-perlu-belajar-coding" }]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

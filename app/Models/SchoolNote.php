@@ -1,0 +1,20 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class SchoolNote extends Model
+{
+    public $timestamps = false; // hanya created_at (default DB)
+    protected $fillable = ['school_id', 'note', 'created_by'];
+
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+}
