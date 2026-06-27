@@ -22,6 +22,8 @@ use App\Http\Controllers\Api\V1\Admin\ArticleController;
 use App\Http\Controllers\Api\V1\Karyawan\EmployeeAttendanceController;
 use App\Http\Controllers\Api\V1\Murid\EReportController;
 use App\Http\Controllers\Api\V1\Landing\LandingController;
+use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\ProgramController;
 
 Route::prefix('v1')->group(function () {
 
@@ -54,8 +56,16 @@ Route::prefix('v1')->group(function () {
     Route::get('artikel', [ArticlePublicController::class, 'index']);
     Route::get('artikel/{slug}', [ArticlePublicController::class, 'show']);
 
+
+    Route::get('programs', [ProgramController::class, 'index'])->middleware('throttle:api');
+
     /* ---------- TERPROTEKSI (butuh token) ---------- */
     Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
+
+        Route::get('notifikasi', [NotificationController::class, 'index']);
+        Route::get('notifikasi/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::patch('notifikasi/read-all', [NotificationController::class, 'markAllRead']);
+        Route::patch('notifikasi/{notification}/read', [NotificationController::class, 'markRead']);
         // Umum (internal & school admin)
         Route::get('auth/me', [AuthController::class, 'me']);
         Route::post('auth/logout', [AuthController::class, 'logout']);
