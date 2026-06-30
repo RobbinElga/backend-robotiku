@@ -24,6 +24,8 @@ use App\Http\Controllers\Api\V1\Murid\EReportController;
 use App\Http\Controllers\Api\V1\Landing\LandingController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\ProgramController;
+use App\Http\Controllers\Api\V1\Sekolah\SchoolPortalController;
+use App\Http\Controllers\Api\V1\Sekolah\SchoolPaymentController;
 
 Route::prefix('v1')->group(function () {
 
@@ -72,6 +74,13 @@ Route::prefix('v1')->group(function () {
         Route::post('auth/school-admin/logout', [SchoolAdminAuthController::class, 'logout']);
         Route::get('sekolah/mou', [SchoolController::class, 'mou']);
 
+
+
+        Route::get('sekolah/pembayaran', [SchoolPaymentController::class, 'index']);
+        Route::post('sekolah/pembayaran/upload', [SchoolPaymentController::class, 'collectiveUpload']);
+
+        Route::get('sekolah/dashboard', [SchoolPortalController::class, 'kpi']);
+        Route::get('sekolah/murid', [SchoolPortalController::class, 'students']);
         // Admin Sekolah — daftar murid (controller cek instanceof SchoolAdmin)
         Route::post('sekolah/murid', [SchoolStudentController::class, 'store']);
         Route::post('sekolah/murid/preview-excel', [SchoolStudentController::class, 'previewExcel']);

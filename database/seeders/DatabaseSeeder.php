@@ -12,6 +12,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             SettingSeeder::class,
             LandingSeeder::class,
+            SchoolAdminSeeder::class,
             SampleSeeder::class,
         ]);
     }
