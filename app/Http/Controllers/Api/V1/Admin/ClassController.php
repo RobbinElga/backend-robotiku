@@ -11,6 +11,7 @@ use App\Models\Kelas;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Models\User;
 
 class ClassController extends Controller
 {
@@ -91,5 +92,13 @@ class ClassController extends Controller
         );
 
         return $this->success($billing, 'Harga kelas disimpan.');
+    }
+
+    public function trainers(): JsonResponse
+    {
+        return $this->success(
+            User::where('role', 'trainer')->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'Daftar trainer.'
+        );
     }
 }

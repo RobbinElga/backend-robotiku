@@ -155,6 +155,7 @@ Route::prefix('v1')->group(function () {
             Route::get('promo/{discountCode}', [DiscountCodeController::class, 'show']);
             Route::put('promo/{discountCode}', [DiscountCodeController::class, 'update']);
             Route::delete('promo/{discountCode}', [DiscountCodeController::class, 'destroy']);
+            Route::get('trainers', [ClassController::class, 'trainers']);
         });
 
         Route::middleware('role:super_admin')->group(function () {
