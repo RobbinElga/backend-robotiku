@@ -130,6 +130,8 @@ Route::prefix('v1')->group(function () {
             Route::get('dashboard', [DashboardController::class, 'index']);
             Route::put('landing/{section}', [LandingController::class, 'update']);
             Route::post('landing-upload', [LandingController::class, 'upload']);
+            Route::get('siswa/export/excel', [StudentController::class, 'exportExcel']);
+            Route::get('siswa/export/pdf', [StudentController::class, 'exportPdf']);
             Route::get('siswa', [StudentController::class, 'index']);
             Route::get('siswa/{student}', [StudentController::class, 'show']);
             Route::patch('siswa/{student}/status', [StudentController::class, 'changeStatus']);

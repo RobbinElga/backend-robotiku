@@ -10,6 +10,9 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
+use Barryvdh\DomPDF\Facade\Pdf;
+use App\Exports\StudentsExport;
 
 class StudentController extends Controller
 {
@@ -59,11 +62,35 @@ class StudentController extends Controller
                 'student_id'      => $student->id,
                 'old_status'      => $old,
                 'new_status'      => $new,
+                'note'            => $request->note,
                 'changed_by_type' => 'user',
                 'changed_by'      => $request->user()->id,
             ]);
         });
 
         return $this->success($student->fresh(), 'Status siswa diperbarui.');
+    }
+
+    private function filtered(Request $request)
+    {
+        return Student::query()
+            ->with(['parent:id,name,phone', 'school:id,name'])
+            ->when($request->filled('search'), fn($q) =>
+            $q->where(fn($w) => $w->where('name', 'like', '%' . $request->search . '%')
+                ->orWhere('student_code', 'like', '%' . $request->search . '%')))
+            ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
+            ->when($request->filled('registration_type'), fn($q) => $q->where('registration_type', $request->registration_type))
+            ->orderBy('name');
+    }
+
+    public function exportExcel(Request $request)
+    {
+        return Excel::download(new StudentsExport($this->filtered($request)->get()), 'data-siswa.xlsx');
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $students = $this->filtered($request)->get();
+        return Pdf::loadView('exports.siswa', ['students' => $students])->download('data-siswa.pdf');
     }
 }
