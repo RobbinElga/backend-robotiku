@@ -78,4 +78,14 @@ class AttendanceController extends Controller
             'new_invoice'   => $newInvoice?->invoice_number, // null kalau belum kelipatan 4
         ], 'Absensi tersimpan.', 201);
     }
+
+    public function classes(Request $request): JsonResponse
+    {
+        $classes = Kelas::where('trainer_id', $request->user()->id)
+            ->with('students:id,student_code,name,status')
+            ->orderBy('name')
+            ->get(['id', 'name', 'schedule']);
+
+        return $this->success($classes, 'Kelas Anda.');
+    }
 }

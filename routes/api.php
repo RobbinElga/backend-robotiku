@@ -113,6 +113,7 @@ Route::prefix('v1')->group(function () {
             Route::post('absensi', [AttendanceController::class, 'store']);
             Route::post('absensi-karyawan', [EmployeeAttendanceController::class, 'store']);
             Route::get('absensi-karyawan/today', [EmployeeAttendanceController::class, 'today']);
+            Route::get('trainer/kelas', [AttendanceController::class, 'classes']);
         });
 
         Route::get('sekolah/murid/{student}/progress', [ProgressController::class, 'school']);
