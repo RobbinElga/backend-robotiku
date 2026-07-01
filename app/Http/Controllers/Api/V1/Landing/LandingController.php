@@ -9,7 +9,6 @@ use App\Support\LandingSchema;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class LandingController extends Controller
 {
@@ -63,6 +62,6 @@ class LandingController extends Controller
 
         $path = ImageStorage::storeWebp($request->file('image'), 'landing', 'public');
 
-        return $this->success(['url' => Storage::disk('public')->url($path), 'path' => $path], 'Gambar terunggah.');
+        return $this->success(['url' => asset('storage/' . $path), 'path' => $path], 'Gambar terunggah.');
     }
 }

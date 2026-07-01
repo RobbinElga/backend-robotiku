@@ -7,7 +7,6 @@ use App\Models\Article;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class ArticlePublicController extends Controller
 {
@@ -43,7 +42,7 @@ class ArticlePublicController extends Controller
             'title'      => $a->title,
             'slug'       => $a->slug,
             'category'   => $a->category,
-            'cover_url'  => $a->cover_image ? Storage::disk('public')->url($a->cover_image) : null,
+            'cover_url' => $a->cover_image ? asset('storage/' . $a->cover_image) : null,
             'published_at' => $a->published_at,
         ];
 
