@@ -4,14 +4,13 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AssignStudentsRequest;
-use App\Http\Requests\Admin\BillingRequest;
 use App\Http\Requests\Admin\StoreClassRequest;
-use App\Models\BillingSetting;
 use App\Models\Kelas;
+use App\Models\Student;
+use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Models\User;
 
 class ClassController extends Controller
 {
@@ -19,8 +18,9 @@ class ClassController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $classes = Kelas::with('trainer:id,name', 'billingSetting')
+        $classes = Kelas::with('trainer:id,name', 'program:id,name')
             ->withCount('students')
+            ->when($request->filled('search'), fn($q) => $q->where('name', 'like', '%' . $request->search . '%'))
             ->orderBy('name')
             ->paginate($request->integer('per_page', 20));
 
@@ -30,34 +30,35 @@ class ClassController extends Controller
     public function store(StoreClassRequest $request): JsonResponse
     {
         $kelas = Kelas::create($request->validated());
-
-        return $this->success($kelas, 'Kelas dibuat.', 201);
+        return $this->success($kelas->load('program:id,name', 'trainer:id,name'), 'Kelas dibuat.', 201);
     }
 
     public function show(Kelas $kelas): JsonResponse
     {
         $kelas->load([
             'trainer:id,name',
-            'billingSetting',
+            'program:id,name,registration_fee,price_per_cycle',
             'students:id,student_code,name,status',
         ]);
-
         return $this->success($kelas, 'Detail kelas.');
     }
 
     public function update(StoreClassRequest $request, Kelas $kelas): JsonResponse
     {
         $kelas->update($request->validated());
-
-        return $this->success($kelas->fresh(), 'Kelas diperbarui.');
+        return $this->success($kelas->fresh()->load('program:id,name', 'trainer:id,name'), 'Kelas diperbarui.');
     }
 
-    /** Assign murid ke kelas (tanpa duplikat). */
+    /** Assign murid — hanya yang program-nya sama dengan kelas. */
     public function assignStudents(AssignStudentsRequest $request, Kelas $kelas): JsonResponse
     {
+        $eligible = Student::whereIn('id', $request->student_ids)
+            ->where('program_id', $kelas->program_id)
+            ->pluck('id')->all();
+
         $existing = $kelas->students()->pluck('students.id')->all();
 
-        $toAttach = collect($request->student_ids)
+        $toAttach = collect($eligible)
             ->reject(fn($id) => in_array($id, $existing))
             ->mapWithKeys(fn($id) => [$id => ['joined_at' => now()]])
             ->all();
@@ -66,32 +67,19 @@ class ClassController extends Controller
             $kelas->students()->attach($toAttach);
         }
 
+        $rejected = array_values(array_diff($request->student_ids, $eligible));
+
         return $this->success([
-            'assigned'     => array_keys($toAttach),
+            'assigned'       => array_keys($toAttach),
+            'rejected'       => $rejected,   // dilewati karena beda program
             'total_in_class' => $kelas->students()->count(),
-        ], 'Murid ditetapkan ke kelas.');
+        ], $rejected ? 'Sebagian murid dilewati karena beda program.' : 'Murid ditetapkan ke kelas.');
     }
 
     public function removeStudent(Kelas $kelas, int $studentId): JsonResponse
     {
         $kelas->students()->detach($studentId);
-
         return $this->success(null, 'Murid dikeluarkan dari kelas.');
-    }
-
-    /** Set/update harga kelas. */
-    public function setBilling(BillingRequest $request, Kelas $kelas): JsonResponse
-    {
-        $billing = BillingSetting::updateOrCreate(
-            ['class_id' => $kelas->id],
-            [
-                'registration_fee' => $request->registration_fee,
-                'price_per_cycle'  => $request->price_per_cycle,
-                'updated_by'       => $request->user()->id,
-            ]
-        );
-
-        return $this->success($billing, 'Harga kelas disimpan.');
     }
 
     public function trainers(): JsonResponse
@@ -100,5 +88,14 @@ class ClassController extends Controller
             User::where('role', 'trainer')->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'Daftar trainer.'
         );
+    }
+
+    public function destroy(Kelas $kelas): JsonResponse
+    {
+        if ($kelas->students()->exists()) {
+            return $this->error('Keluarkan semua murid dari kelas ini sebelum menghapus.', 422);
+        }
+        $kelas->delete();
+        return $this->success(null, 'Kelas dihapus.');
     }
 }

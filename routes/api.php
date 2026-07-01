@@ -26,6 +26,8 @@ use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\ProgramController;
 use App\Http\Controllers\Api\V1\Sekolah\SchoolPortalController;
 use App\Http\Controllers\Api\V1\Sekolah\SchoolPaymentController;
+use App\Http\Controllers\Api\V1\Admin\ProgramController as AdminProgramController;
+use App\Http\Controllers\Api\V1\Admin\SchoolAdminController;
 
 Route::prefix('v1')->group(function () {
 
@@ -57,7 +59,15 @@ Route::prefix('v1')->group(function () {
 
     Route::get('artikel', [ArticlePublicController::class, 'index']);
     Route::get('artikel/{slug}', [ArticlePublicController::class, 'show']);
+    // Sekolah MOU untuk dropdown daftar instansi (publik)
+    Route::get('sekolah/mou', [SchoolController::class, 'mou'])->middleware('throttle:api');
 
+    // Daftar via instansi — publik, school_id dari body
+    Route::post('daftar/instansi', [DaftarController::class, 'instansi'])->middleware('throttle:api');
+    Route::post('daftar/instansi/preview', [DaftarController::class, 'instansiPreview'])->middleware('throttle:api');
+    Route::post('daftar/instansi/import', [DaftarController::class, 'instansiImport'])->middleware('throttle:api');
+    Route::get('daftar/instansi/template', [DaftarController::class, 'instansiTemplate'])->middleware('throttle:api');
+    Route::post('daftar/instansi/bayar', [DaftarController::class, 'instansiBayar'])->middleware('throttle:api');
 
     Route::get('programs', [ProgramController::class, 'index'])->middleware('throttle:api');
 
@@ -72,9 +82,6 @@ Route::prefix('v1')->group(function () {
         Route::get('auth/me', [AuthController::class, 'me']);
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::post('auth/school-admin/logout', [SchoolAdminAuthController::class, 'logout']);
-        Route::get('sekolah/mou', [SchoolController::class, 'mou']);
-
-
 
         Route::get('sekolah/pembayaran', [SchoolPaymentController::class, 'index']);
         Route::post('sekolah/pembayaran/upload', [SchoolPaymentController::class, 'collectiveUpload']);
@@ -143,7 +150,6 @@ Route::prefix('v1')->group(function () {
             Route::put('kelas/{kelas}', [ClassController::class, 'update']);
             Route::post('kelas/{kelas}/murid', [ClassController::class, 'assignStudents']);
             Route::delete('kelas/{kelas}/murid/{studentId}', [ClassController::class, 'removeStudent']);
-            Route::put('kelas/{kelas}/harga', [ClassController::class, 'setBilling']);
             Route::get('admin/artikel', [ArticleController::class, 'index']);
             Route::post('admin/artikel', [ArticleController::class, 'store']);
             Route::get('admin/artikel/{article}', [ArticleController::class, 'show']);
@@ -157,6 +163,17 @@ Route::prefix('v1')->group(function () {
             Route::put('promo/{discountCode}', [DiscountCodeController::class, 'update']);
             Route::delete('promo/{discountCode}', [DiscountCodeController::class, 'destroy']);
             Route::get('trainers', [ClassController::class, 'trainers']);
+            Route::delete('kelas/{kelas}', [ClassController::class, 'destroy']);
+            Route::get('program', [AdminProgramController::class, 'index']);
+            Route::post('program', [AdminProgramController::class, 'store']);
+            Route::get('program/{program}', [AdminProgramController::class, 'show']);
+            Route::put('program/{program}', [AdminProgramController::class, 'update']);
+            Route::delete('program/{program}', [AdminProgramController::class, 'destroy']);
+            Route::get('akun-sekolah', [SchoolAdminController::class, 'index']);
+            Route::post('akun-sekolah', [SchoolAdminController::class, 'store']);
+            Route::put('akun-sekolah/{schoolAdmin}', [SchoolAdminController::class, 'update']);
+            Route::patch('akun-sekolah/{schoolAdmin}/password', [SchoolAdminController::class, 'resetPassword']);
+            Route::patch('akun-sekolah/{schoolAdmin}/status', [SchoolAdminController::class, 'toggleActive']);
         });
 
         Route::middleware('role:super_admin')->group(function () {

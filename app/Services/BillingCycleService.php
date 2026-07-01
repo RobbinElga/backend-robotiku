@@ -2,9 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\Attendance;
 use App\Models\BillingMonth;
 use App\Models\Invoice;
+use App\Models\Notification;
 use App\Models\Student;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -12,43 +15,41 @@ class BillingCycleService
 {
     /**
      * Dipanggil setelah absensi "hadir" tersimpan.
-     * Tiap kelipatan 4 "hadir" → buat siklus + invoice baru.
-     * Mengembalikan Invoice baru, atau null jika tidak ada yang dibuat.
+     * Tiap kelipatan 4 "hadir" → invoice siklus baru (harga dari Program siswa).
+     * CUTI / BERHENTI → tidak ada invoice baru.
      */
     public function handleAttendance(Student $student): ?Invoice
     {
-        // Siswa CUTI / BERHENTI → counter berhenti, tidak ada invoice baru
-        if ($student->status !== 'aktif') {
+        if (in_array($student->status, ['cuti', 'berhenti'], true)) {
             return null;
         }
 
-        $hadirCount = $student->attendances()->where('status', 'hadir')->count();
+        $hadir = Attendance::where('student_id', $student->id)
+            ->where('status', 'hadir')
+            ->count();
 
-        // hanya saat tepat kelipatan 4 (4, 8, 12, ...)
-        if ($hadirCount === 0 || $hadirCount % 4 !== 0) {
+        if ($hadir === 0 || $hadir % 4 !== 0) {
+            return null; // belum genap kelipatan 4
+        }
+
+        // Invoice pertama = cycle 1 (saat daftar). Tiap 4 "hadir" → cycle berikutnya.
+        $cycleNumber = intdiv($hadir, 4) + 1;
+
+        // Cegah dobel bila absensi diedit / dipanggil ulang
+        $exists = BillingMonth::where('student_id', $student->id)
+            ->where('cycle_number', $cycleNumber)
+            ->exists();
+        if ($exists) {
             return null;
         }
 
-        $nextCycle = intdiv($hadirCount, 4) + 1;
+        return DB::transaction(function () use ($student, $cycleNumber) {
+            $student->loadMissing('program');
+            $pricePerCycle = (float) ($student->program?->price_per_cycle ?? 0);
 
-        // idempoten: kalau siklus ini sudah pernah dibuat, jangan dobel
-        if ($student->billingMonths()->where('cycle_number', $nextCycle)->exists()) {
-            return null;
-        }
-
-        // ambil harga dari kelas Robotiku siswa
-        $class = $student->classes()->first();
-        $billing = $class?->billingSetting;
-        if (! $billing) {
-            return null; // harga belum diatur → tidak bisa menagih
-        }
-
-        $price = (float) $billing->price_per_cycle;
-
-        return DB::transaction(function () use ($student, $nextCycle, $price) {
             $billingMonth = BillingMonth::create([
                 'student_id'   => $student->id,
-                'cycle_number' => $nextCycle,
+                'cycle_number' => $cycleNumber,
                 'period_month' => (int) now()->format('n'),
                 'period_year'  => (int) now()->format('Y'),
                 'status'       => 'aktif',
@@ -58,10 +59,10 @@ class BillingCycleService
                 'invoice_number'   => 'TMP-' . Str::uuid(),
                 'student_id'       => $student->id,
                 'billing_month_id' => $billingMonth->id,
-                'base_amount'      => $price,
-                'registration_fee' => null,   // hanya invoice pertama
+                'base_amount'      => $pricePerCycle,
+                'registration_fee' => null,          // hanya invoice pertama
                 'discount_amount'  => 0,
-                'total_amount'     => $price,
+                'total_amount'     => $pricePerCycle,
                 'due_date'         => now()->addDays(7),
                 'status'           => 'belum_bayar',
             ]);
@@ -69,7 +70,27 @@ class BillingCycleService
                 'invoice_number' => 'INV-' . now()->format('Ymd') . '-' . str_pad((string) $invoice->id, 5, '0', STR_PAD_LEFT),
             ]);
 
-            return $invoice;
+            $this->notifyNewInvoice($student->name, $invoice->invoice_number);
+
+            return $invoice->fresh();
         });
+    }
+
+    private function notifyNewInvoice(string $studentName, string $invoiceNumber): void
+    {
+        $recipients = User::whereIn('role', ['admin_keuangan', 'super_admin'])
+            ->where('is_active', true)
+            ->pluck('id');
+
+        foreach ($recipients as $userId) {
+            Notification::create([
+                'recipient_type' => 'user',
+                'recipient_id'   => $userId,
+                'title'          => 'Tagihan Baru',
+                'message'        => "Tagihan {$invoiceNumber} untuk {$studentName} telah dibuat.",
+                'type'           => 'pembayaran_baru',
+                'is_read'        => false,
+            ]);
+        }
     }
 }

@@ -20,6 +20,7 @@ class ParentLookupController extends Controller
             ->where('registration_type', 'mandiri')
             ->whereNotNull('parent_id')
             ->with('parent:id,name,phone')
+            ->withExists(['invoices as verified' => fn($q) => $q->where('status', 'lunas')])
             ->when($request->filled('phone'), function ($q) use ($request) {
                 $phone = Phone::normalize($request->phone);
                 $q->whereHas('parent', fn($p) => $p->where('phone', $phone));

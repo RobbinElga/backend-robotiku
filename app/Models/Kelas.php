@@ -20,12 +20,13 @@ class Kelas extends Model
     {
         return $this->belongsToMany(Student::class, 'class_students', 'class_id', 'student_id')->withPivot('joined_at');
     }
-    public function billingSetting()
-    {
-        return $this->hasOne(BillingSetting::class, 'class_id');
-    }
     public function attendances()
     {
         return $this->hasMany(Attendance::class, 'class_id');
+    }
+
+    public function program()
+    {
+        return $this->belongsTo(Program::class);
     }
 }

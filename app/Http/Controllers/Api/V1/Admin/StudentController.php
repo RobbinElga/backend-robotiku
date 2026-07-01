@@ -28,6 +28,9 @@ class StudentController extends Controller
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
             ->when($request->filled('registration_type'), fn($q) => $q->where('registration_type', $request->registration_type))
             ->when($request->filled('school_id'), fn($q) => $q->where('school_id', $request->school_id))
+            ->when($request->boolean('unassigned'), fn($q) => $q->whereDoesntHave('classes'))
+            ->when($request->filled('program_id'), fn($q) => $q->where('program_id', $request->program_id))
+            ->when($request->boolean('unassigned'), fn($q) => $q->whereDoesntHave('classes'))
             ->orderByDesc('created_at')
             ->paginate($request->integer('per_page', 20));
 

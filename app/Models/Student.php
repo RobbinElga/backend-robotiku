@@ -62,4 +62,9 @@ class Student extends Model
     {
         return $this->hasMany(EReport::class);
     }
+
+    public function program()
+    {
+        return $this->belongsTo(Program::class);
+    }
 }

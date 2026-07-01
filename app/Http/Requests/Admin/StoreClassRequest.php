@@ -3,7 +3,6 @@
 namespace App\Http\Requests\Admin;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class StoreClassRequest extends FormRequest
 {
@@ -15,10 +14,11 @@ class StoreClassRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'program_id' => ['required', 'exists:programs,id'],
             'name'       => ['required', 'string', 'max:120'],
             'schedule'   => ['nullable', 'string', 'max:120'],
-            'capacity'   => ['nullable', 'integer', 'min:1'],
-            'trainer_id' => ['nullable', Rule::exists('users', 'id')->where('role', 'trainer')],
+            'capacity'   => ['required', 'integer', 'min:1'],
+            'trainer_id' => ['nullable', 'exists:users,id'],
         ];
     }
 }

@@ -15,6 +15,7 @@ class StudentStatusRequest extends FormRequest
     {
         return [
             'status' => ['required', 'in:aktif,cuti,berhenti'],
+            'note' => ['nullable', 'string', 'max:500'],
         ];
     }
 }

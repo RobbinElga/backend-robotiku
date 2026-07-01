@@ -73,6 +73,7 @@ class PaymentController extends Controller
         $invoices = Invoice::whereHas('student', fn($q) => $q->where('school_id', $admin->school_id))
             ->with('student:id,name,student_code')
             ->orderByDesc('created_at')
+            ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
             ->paginate($request->integer('per_page', 20));
 
         return $this->success($invoices, 'Tagihan murid instansi.');
