@@ -25,8 +25,12 @@ class EReport extends Model
         'behavior_communication',
         'behavior_responsibility',
         'comments',
+        'topics',
+        'report_place',
+        'report_date',
         'signature_image',
     ];
+    protected $casts = ['topics' => 'array', 'report_date' => 'date'];
 
     public function student()
     {

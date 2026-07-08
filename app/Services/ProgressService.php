@@ -13,17 +13,21 @@ class ProgressService
             ->get(['id', 'class_id', 'status', 'report', 'photo', 'attended_at'])
             ->map(fn($a) => [
                 'id'          => $a->id,
-                'status'      => $a->status,
+                'status'       => $a->status,
+                'score'        => $a->score,
                 'report'      => $a->report,
                 'has_photo'   => (bool) $a->photo,
+                'photo'       => $a->photo,
                 'attended_at' => $a->attended_at,
+                'trainer_name' => optional($a->trainer)->name,
             ]);
 
         $summary = [
-            'hadir'       => $attendances->where('status', 'hadir')->count(),
-            'izin'        => $attendances->where('status', 'izin')->count(),
-            'tidak_hadir' => $attendances->where('status', 'tidak_hadir')->count(),
-            'total_sesi'  => $attendances->count(),
+            'hadir'            => $attendances->where('status', 'hadir')->count(),
+            'izin'             => $attendances->where('status', 'izin')->count(),
+            'sakit'            => $attendances->where('status', 'sakit')->count(),
+            'tanpa_keterangan' => $attendances->where('status', 'tanpa_keterangan')->count(),
+            'total_sesi'       => $attendances->count(),
         ];
 
         return [

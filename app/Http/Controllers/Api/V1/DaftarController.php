@@ -39,6 +39,7 @@ class DaftarController extends Controller
                 'name'         => $result['student']->name,
             ],
             'invoice' => [
+                'id'              => $result['invoice']->id,
                 'invoice_number'  => $result['invoice']->invoice_number,
                 'total_amount'    => $result['invoice']->total_amount,
                 'discount_amount' => $result['invoice']->discount_amount,
@@ -46,6 +47,34 @@ class DaftarController extends Controller
                 'status'          => $result['invoice']->status,
             ],
         ], 'Pendaftaran berhasil. Silakan lakukan pembayaran sesuai tagihan.', 201);
+    }
+
+    // DaftarController
+    public function mandiriBayar(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'invoice_ids'   => ['required', 'array', 'min:1'],
+            'invoice_ids.*' => ['exists:invoices,id'],
+            'proof'         => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+        ]);
+
+        $path = $request->file('proof')->store('payments', 'local');
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($data, $path) {
+            foreach ($data['invoice_ids'] as $id) {
+                $invoice = \App\Models\Invoice::with('student')->findOrFail($id);
+                Payment::create([
+                    'invoice_id'    => $invoice->id,
+                    'proof_file'    => $path,
+                    'uploader_type' => 'parent',
+                    'uploader_id'   => $invoice->student->parent_id,
+                    'status'        => 'menunggu_verifikasi',
+                ]);
+                $invoice->update(['status' => 'menunggu_verifikasi']);
+            }
+        });
+
+        return $this->success(null, 'Bukti pembayaran terkirim. Menunggu verifikasi Admin Keuangan.');
     }
 
     /* ---------- INSTANSI (publik, school_id dari body) ---------- */
@@ -138,7 +167,11 @@ class DaftarController extends Controller
     {
         return $request->validate([
             'school_id'        => ['required', 'exists:schools,id'],
-            'program_id'       => ['required', 'exists:programs,id'],   // ← program, bukan class
+            'program_id'       => ['required', 'exists:programs,id'],
+            'parent_name'      => ['required', 'string', 'max:120'],
+            'greeting'         => ['nullable', 'in:ayah,bunda'],
+            'phone'            => ['required', 'string', 'max:20'],
+            'phone_alt'        => ['nullable', 'string', 'max:20'],
             'name'             => ['required', 'string', 'max:120'],
             'birth_date'       => ['required', 'date'],
             'gender'           => ['required', 'in:L,P'],

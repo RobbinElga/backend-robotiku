@@ -6,12 +6,31 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use App\Services\Whatsapp\WhatsappGateway;
+use App\Services\Whatsapp\FonnteGateway;
+use App\Services\Whatsapp\LogGateway;
+use App\Models\Setting;
 
 class AppServiceProvider extends ServiceProvider
 {
+
+
     public function register(): void
     {
-        //
+        $this->app->singleton(WhatsappGateway::class, function () {
+            $provider = Setting::get('wa_provider', 'fonnte');
+            $token    = Setting::get('wa_token') ?: env('FONNTE_TOKEN');
+
+            if (! $token) {
+                return new LogGateway(); // token belum diisi → log saja, tidak error
+            }
+
+            return match ($provider) {
+                'fonnte' => new FonnteGateway($token),
+                // 'wablas' => new WablasGateway($token),   // tinggal tambah driver baru di sini
+                default  => new LogGateway(),
+            };
+        });
     }
 
     public function boot(): void

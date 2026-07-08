@@ -10,7 +10,14 @@ class Kelas extends Model
     use HasFactory;
 
     protected $table = 'classes';
-    protected $fillable = ['name', 'schedule', 'capacity', 'trainer_id'];
+    protected $fillable = [
+        'name',
+        'schedule',
+        'capacity',
+        'program_id',
+        'school_id',
+        'trainer_id',
+    ];
 
     public function trainer()
     {
@@ -28,5 +35,21 @@ class Kelas extends Model
     public function program()
     {
         return $this->belongsTo(Program::class);
+    }
+
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
+
+    public function sessions()
+    {
+        return $this->hasMany(Session::class, 'class_id');
+    }
+
+    public function trainers()
+    {
+        return $this->belongsToMany(User::class, 'class_trainers', 'class_id', 'trainer_id')
+            ->withPivot('role')->withTimestamps();
     }
 }

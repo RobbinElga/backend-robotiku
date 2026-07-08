@@ -8,8 +8,8 @@ use Illuminate\Support\Str;
 
 class ImageStorage
 {
-    /** Simpan gambar → WebP (UUID) di disk yang dipilih. Kembalikan path relatif. */
-    public static function storeWebp(UploadedFile $file, string $dir, string $disk = 'local'): string
+    /** Simpan gambar → WebP (UUID) di disk public. Kembalikan path relatif. */
+    public static function storeWebp(UploadedFile $file, string $dir, string $disk = 'public'): string   // ← 'public'
     {
         $path = $dir . '/' . Str::uuid() . '.webp';
         $full = Storage::disk($disk)->path($path);
@@ -24,7 +24,6 @@ class ImageStorage
             default       => null,
         };
 
-        // fallback: kalau GD tidak ada / format tak didukung → simpan apa adanya
         if (! $src || ! function_exists('imagewebp')) {
             return $file->storeAs($dir, Str::uuid() . '.' . $ext, $disk);
         }

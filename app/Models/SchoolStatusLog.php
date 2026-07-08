@@ -10,7 +10,7 @@ class SchoolStatusLog extends Model
     use Immutable;
 
     public $timestamps = false;
-    protected $fillable = ['school_id', 'old_status', 'new_status', 'note', 'changed_by'];
+    protected $fillable = ['student_id', 'school_id', 'old_status', 'new_status', 'note', 'changed_by'];
 
     public function school()
     {

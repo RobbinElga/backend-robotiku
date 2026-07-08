@@ -4,97 +4,162 @@ namespace App\Http\Controllers\Api\V1\Sekolah;
 
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
-use App\Models\Notification;
 use App\Models\Payment;
-use App\Models\PaymentStatusLog;
+use App\Models\School;
 use App\Models\SchoolAdmin;
-use App\Models\User;
+use App\Models\SchoolSettlement;
+use App\Services\WhatsappService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class SchoolPaymentController extends Controller
 {
     use ApiResponse;
+    public function __construct(private WhatsappService $wa) {}
 
-    public function index(Request $request): JsonResponse
+    private function schoolId(Request $r): int
     {
-        $admin = $request->user();
-        if (! $admin instanceof SchoolAdmin) return $this->error('Khusus Admin Sekolah.', 403);
-
-        $invoices = Invoice::whereHas('student', fn($q) => $q->where('school_id', $admin->school_id))
-            ->whereIn('status', ['belum_bayar', 'menunggu_verifikasi'])
-            ->with('student:id,name,student_code')
-            ->orderByRaw("FIELD(status,'belum_bayar','menunggu_verifikasi')")
-            ->get(['id', 'invoice_number', 'student_id', 'total_amount', 'status', 'due_date']);
-
-        $belum = $invoices->where('status', 'belum_bayar');
-
-        return $this->success([
-            'invoices'           => $invoices,
-            'total_belum_bayar'  => (float) $belum->sum(fn($i) => (float) $i->total_amount),
-            'count_belum_bayar'  => $belum->count(),
-        ], 'Tagihan instansi.');
+        abort_unless($r->user() instanceof SchoolAdmin, 403, 'Khusus Admin Sekolah.');
+        return $r->user()->school_id;
     }
 
-    public function collectiveUpload(Request $request): JsonResponse
+    /** Lapis-1: pembayaran ortu masuk (menunggu verifikasi). */
+    public function pendingPayments(Request $r): JsonResponse
     {
-        $admin = $request->user();
-        if (! $admin instanceof SchoolAdmin) return $this->error('Khusus Admin Sekolah.', 403);
+        $sid = $this->schoolId($r);
+        $payments = Payment::with(['invoice.student:id,name,student_code,school_id,parent_id', 'invoice.student.parent:id,name,phone,greeting'])
+            ->where('status', 'menunggu_verifikasi')
+            ->whereHas('invoice.student', fn($q) => $q->where('school_id', $sid)->where('registration_type', 'instansi'))
+            ->latest()->get();
+        return $this->success($payments, 'Pembayaran menunggu verifikasi.');
+    }
 
-        $request->validate([
-            'file'          => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
-            'invoice_ids'   => ['nullable', 'array'],
-            'invoice_ids.*' => ['integer'],
+    public function verify(Request $r, Payment $payment): JsonResponse
+    {
+        $sid = $this->schoolId($r);
+        $payment->load('invoice.student.parent');
+        abort_unless(optional($payment->invoice->student)->school_id === $sid, 403);
+        $data = $r->validate(['action' => ['required', 'in:approve,reject'], 'note' => ['nullable', 'string']]);
+
+        if ($data['action'] === 'approve') {
+            $payment->update([
+                'status' => 'diverifikasi',
+                'verified_at' => now(),
+                'verified_by_school_admin' => $r->user()->id,   // ← Admin Sekolah yang verifikasi
+                'notes' => $data['note'] ?? null,
+            ]);
+            $payment->invoice->update(['status' => 'lunas']);
+            optional($payment->invoice->student)->update(['is_verified' => true]);
+            $st = $payment->invoice->student;
+            $p = $st?->parent;
+            if ($p?->phone) $this->wa->sendTemplate('wa_tpl_payment_confirmed', $p->phone, ['sapaan' => $this->sapaan($p->greeting), 'nama_anak' => $st->name]);
+        } else {
+            $payment->update([
+                'status' => 'ditolak',
+                'verified_by_school_admin' => $r->user()->id,   // catat penolak juga
+                'notes' => $data['note'] ?? null,
+            ]);
+            $payment->invoice->update(['status' => 'belum_bayar']);
+        }
+        return $this->success(null, 'Pembayaran diproses.');
+    }
+
+    /** Lapis-2: invoice lunas yang belum disetor + ringkasan komisi. */
+    public function availableInvoices(Request $r): JsonResponse
+    {
+        $sid = $this->schoolId($r);
+        $school = School::findOrFail($sid);
+        $invoices = Invoice::with('student:id,name,student_code')
+            ->whereHas('student', fn($q) => $q->where('school_id', $sid)->where('registration_type', 'instansi'))
+            ->where('status', 'lunas')
+            ->whereDoesntHave('settlements', fn($q) => $q->whereIn('school_settlements.status', ['menunggu_verifikasi', 'diverifikasi']))
+            ->latest()->get();
+
+        $gross = (int) $invoices->sum('total_amount');
+        $comm  = (int) round($gross * ((float) $school->commission_percent / 100));
+        return $this->success([
+            'invoices' => $invoices,
+            'gross' => $gross,
+            'commission_percent' => (float) $school->commission_percent,
+            'commission_amount' => $comm,
+            'net' => $gross - $comm,
+        ], 'Invoice siap disetor.');
+    }
+
+    public function createSettlement(Request $r): JsonResponse
+    {
+        $sid = $this->schoolId($r);
+        $school = School::findOrFail($sid);
+        $data = $r->validate([
+            'invoice_ids' => ['required', 'array', 'min:1'],
+            'invoice_ids.*' => ['exists:invoices,id'],
+            'bank_account_id' => ['nullable', 'exists:bank_accounts,id'],
+            'proof' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
         ]);
 
-        $q = Invoice::whereHas('student', fn($x) => $x->where('school_id', $admin->school_id))
-            ->where('status', 'belum_bayar');
-        if ($request->filled('invoice_ids')) $q->whereIn('id', $request->invoice_ids);
-        $invoices = $q->get();
+        $invoices = Invoice::whereIn('id', $data['invoice_ids'])
+            ->whereHas('student', fn($q) => $q->where('school_id', $sid))
+            ->where('status', 'lunas')
+            ->whereDoesntHave('settlements', fn($q) => $q->whereIn('school_settlements.status', ['menunggu_verifikasi', 'diverifikasi']))
+            ->get();
+        if ($invoices->isEmpty()) return $this->error('Tidak ada invoice valid untuk disetor.', 422);
 
-        if ($invoices->isEmpty()) return $this->error('Tidak ada tagihan yang bisa dibayar.', 422);
+        $gross = (int) $invoices->sum('total_amount');
+        $comm  = (int) round($gross * ((float) $school->commission_percent / 100));
+        $path  = $r->file('proof')->store('settlements', 'local');
 
-        $path = $request->file('file')->storeAs(
-            'payments',
-            Str::uuid() . '.' . $request->file('file')->getClientOriginalExtension(),
-            'local'
-        );
+        $settlement = SchoolSettlement::create([
+            'school_id' => $sid,
+            'gross_amount' => $gross,
+            'commission_percent' => $school->commission_percent,
+            'commission_amount' => $comm,
+            'net_amount' => $gross - $comm,
+            'bank_account_id' => $data['bank_account_id'] ?? null,
+            'proof_file' => $path,
+            'status' => 'menunggu_verifikasi',
+            'created_by' => $r->user()->id,
+        ]);
+        $settlement->invoices()->attach($invoices->pluck('id'));
 
-        DB::transaction(function () use ($invoices, $path, $admin) {
-            foreach ($invoices as $inv) {
-                $payment = Payment::create([
-                    'invoice_id' => $inv->id,
-                    'proof_file' => $path,
-                    'uploader_type' => 'school_admin',
-                    'uploader_id' => $admin->id,
-                    'status' => 'menunggu_verifikasi',
-                ]);
-                PaymentStatusLog::create([
-                    'payment_id' => $payment->id,
-                    'old_status' => null,
-                    'new_status' => 'menunggu_verifikasi',
-                    'notes' => 'Bukti pembayaran kolektif diunggah.',
-                    'changed_by' => null,
-                ]);
-                $inv->update(['status' => 'menunggu_verifikasi']);
-            }
+        return $this->success($settlement, 'Setoran terkirim, menunggu verifikasi Admin Keuangan.', 201);
+    }
 
-            $recipients = User::whereIn('role', ['admin_keuangan', 'super_admin'])->where('is_active', true)->pluck('id');
-            foreach ($recipients as $uid) {
-                Notification::create([
-                    'recipient_type' => 'user',
-                    'recipient_id' => $uid,
-                    'title' => 'Pembayaran Kolektif',
-                    'message' => "Pembayaran kolektif: {$invoices->count()} tagihan menunggu verifikasi.",
-                    'type' => 'pembayaran_baru',
-                    'is_read' => false,
-                ]);
-            }
-        });
+    public function settlements(Request $r): JsonResponse
+    {
+        $sid = $this->schoolId($r);
+        return $this->success(SchoolSettlement::where('school_id', $sid)->latest()->paginate(15), 'Riwayat setoran.');
+    }
 
-        return $this->success(['count' => $invoices->count()], 'Bukti pembayaran kolektif terkirim. Menunggu verifikasi.');
+    private function sapaan(?string $g): string
+    {
+        return match ($g) {
+            'ayah' => 'Ayah',
+            'bunda' => 'Bunda',
+            default => 'Ayah/Bunda'
+        };
+    }
+
+    public function showSettlement(Request $r, SchoolSettlement $settlement): JsonResponse
+    {
+        $sid = $this->schoolId($r);
+        abort_unless($settlement->school_id === $sid, 403);
+
+        $settlement->load(['invoices.student:id,name,student_code']);
+
+        return $this->success($settlement, 'Detail setoran.');
+    }
+
+    /** Riwayat pembayaran ortu yang sudah diproses (diverifikasi / ditolak). */
+    public function paymentHistory(Request $r): JsonResponse
+    {
+        $sid = $this->schoolId($r);
+        $q = Payment::with(['invoice.student:id,name,student_code,school_id'])
+            ->whereIn('status', ['diverifikasi', 'ditolak'])
+            ->whereHas('invoice.student', fn($x) => $x->where('school_id', $sid)->where('registration_type', 'instansi'))
+            ->when($r->filled('status'), fn($x) => $x->where('status', $r->status))
+            ->orderByDesc('verified_at')->latest();
+
+        return $this->success($q->paginate(20), 'Riwayat verifikasi pembayaran.');
     }
 }

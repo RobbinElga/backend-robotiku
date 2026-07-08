@@ -3,13 +3,11 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Admin\StudentStatusRequest;
 use App\Models\Student;
 use App\Models\StudentStatusLog;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Exports\StudentsExport;
@@ -20,17 +18,9 @@ class StudentController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $students = Student::query()
-            ->with(['parent:id,name,phone', 'school:id,name'])
-            ->when($request->filled('search'), fn($q) =>
-            $q->where(fn($w) => $w->where('name', 'like', '%' . $request->search . '%')
-                ->orWhere('student_code', 'like', '%' . $request->search . '%')))
-            ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
-            ->when($request->filled('registration_type'), fn($q) => $q->where('registration_type', $request->registration_type))
-            ->when($request->filled('school_id'), fn($q) => $q->where('school_id', $request->school_id))
+        $students = $this->filtered($request)
             ->when($request->boolean('unassigned'), fn($q) => $q->whereDoesntHave('classes'))
-            ->when($request->filled('program_id'), fn($q) => $q->where('program_id', $request->program_id))
-            ->when($request->boolean('unassigned'), fn($q) => $q->whereDoesntHave('classes'))
+            ->reorder()
             ->orderByDesc('created_at')
             ->paginate($request->integer('per_page', 20));
 
@@ -49,40 +39,46 @@ class StudentController extends Controller
         return $this->success($student, 'Detail siswa.');
     }
 
-    public function changeStatus(StudentStatusRequest $request, Student $student): JsonResponse
+    public function changeStatus(Request $request, Student $student): JsonResponse
     {
-        $old = $student->status;
-        $new = $request->status;
+        $data = $request->validate([
+            'status' => ['required', 'in:aktif,nonaktif,lulus,cuti'],
+            'note'   => ['nullable', 'string'],
+        ]);
 
-        if ($old === $new) {
-            return $this->error('Status tidak berubah.', 422);
+        // "lulus" hanya Super Admin
+        if ($data['status'] === 'lulus' && $request->user()->role !== 'super_admin') {
+            return $this->error('Status "Lulus" hanya bisa diubah oleh Super Admin.', 403);
         }
 
-        DB::transaction(function () use ($student, $old, $new, $request) {
-            $student->update(['status' => $new]);
-
+        $old = $student->status;
+        if ($old !== $data['status']) {
+            $student->update(['status' => $data['status']]);
             StudentStatusLog::create([
-                'student_id'      => $student->id,
-                'old_status'      => $old,
-                'new_status'      => $new,
-                'note'            => $request->note,
-                'changed_by_type' => 'user',
-                'changed_by'      => $request->user()->id,
+                'student_id' => $student->id,
+                'old_status' => $old,
+                'new_status' => $data['status'],
+                'note'       => $data['note'] ?? null,
+                'changed_by' => $request->user()->id,
             ]);
-        });
+        }
 
-        return $this->success($student->fresh(), 'Status siswa diperbarui.');
+        return $this->success($student->fresh(), 'Status murid diperbarui.');
     }
 
+    /** Query dasar Data Siswa — hanya siswa yang SUDAH terverifikasi. */
     private function filtered(Request $request)
     {
         return Student::query()
             ->with(['parent:id,name,phone', 'school:id,name'])
+            ->where('is_verified', true)                  // ← pendaftar belum diverifikasi tidak dianggap siswa
             ->when($request->filled('search'), fn($q) =>
             $q->where(fn($w) => $w->where('name', 'like', '%' . $request->search . '%')
                 ->orWhere('student_code', 'like', '%' . $request->search . '%')))
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
             ->when($request->filled('registration_type'), fn($q) => $q->where('registration_type', $request->registration_type))
+            ->when($request->filled('school_id'), fn($q) => $q->where('school_id', $request->school_id))
+            ->when($request->filled('program_id'), fn($q) => $q->where('program_id', $request->program_id))
             ->orderBy('name');
     }
 

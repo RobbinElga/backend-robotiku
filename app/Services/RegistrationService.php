@@ -6,7 +6,6 @@ use App\Models\BillingMonth;
 use App\Models\Invoice;
 use App\Models\Notification;
 use App\Models\Program;
-use App\Models\School;
 use App\Models\Student;
 use App\Models\StudentParent;
 use App\Models\User;
@@ -50,10 +49,13 @@ class RegistrationService
             }
 
             // Orang tua: cari via HP, buat kalau belum ada
-            $phone = Phone::normalize($data['phone']);
-            $parent = StudentParent::firstOrCreate(
-                ['phone' => $phone],
-                ['name' => $data['parent_name']]
+            $parent = StudentParent::updateOrCreate(
+                ['phone' => Phone::normalize($data['phone'])],
+                [
+                    'name'      => $data['parent_name'],
+                    'greeting'  => $data['greeting'] ?? null,
+                    'phone_alt' => isset($data['phone_alt']) ? Phone::normalize($data['phone_alt']) : null,
+                ]
             );
 
             // Buat siswa
@@ -119,22 +121,23 @@ class RegistrationService
     public function registerInstansi(array $data, int $schoolId): array
     {
         return DB::transaction(function () use ($data, $schoolId) {
-            $program = Program::where('is_active', true)->find($data['program_id']);
-            if (! $program) {
-                throw new DomainException('Program tidak ditemukan atau tidak aktif.');
-            }
+            $school = \App\Models\School::findOrFail($schoolId);
 
-            $registrationFee = (float) $program->registration_fee;
-            $pricePerCycle   = (float) $program->price_per_cycle;
+            $registrationFee = (float) $school->registration_fee;
+            $pricePerCycle   = (float) $school->price_per_cycle;
+            $quota           = (int) ($school->mous()->latest()->value('periods') ?? 0);
 
-            $dup = Student::where('name', $data['name'])
-                ->whereDate('birth_date', $data['birth_date'])
-                ->exists();
-            if ($dup) {
-                throw new DomainException('Siswa dengan nama & tanggal lahir yang sama sudah terdaftar.');
-            }
+            $dup = Student::where('name', $data['name'])->whereDate('birth_date', $data['birth_date'])->exists();
+            if ($dup) throw new DomainException('Siswa dengan nama & tanggal lahir yang sama sudah terdaftar.');
 
-            $school = School::find($schoolId);
+            $parent = StudentParent::updateOrCreate(
+                ['phone' => Phone::normalize($data['phone'])],
+                [
+                    'name' => $data['parent_name'],
+                    'greeting' => $data['greeting'] ?? null,
+                    'phone_alt' => isset($data['phone_alt']) ? Phone::normalize($data['phone_alt']) : null
+                ]
+            );
 
             $student = Student::create([
                 'student_code'      => $this->generateInstansiCode(),
@@ -142,43 +145,42 @@ class RegistrationService
                 'birth_date'        => $data['birth_date'],
                 'gender'            => $data['gender'],
                 'shirt_size'        => $data['shirt_size'] ?? null,
-                'school_origin'     => $school?->name,
+                'school_origin'     => $school->name,
                 'school_grade'      => $data['school_grade'] ?? null,
                 'allergy_notes'     => $data['allergy_notes'] ?? null,
-                'photo_permission'  => $data['photo_permission'],
+                'photo_permission'  => $data['photo_permission'] ?? false,
+                'parent_id'         => $parent->id,          // ← ortu ditautkan
                 'school_id'         => $schoolId,
-                'program_id'        => $program->id,        // ← kunci
+                'program_id'        => $data['program_id'] ?? null,
+                'period_quota'      => $quota ?: null,
+                'joined_at'         => now()->toDateString(),
                 'status'            => 'aktif',
                 'registration_type' => 'instansi',
             ]);
 
             $billingMonth = BillingMonth::create([
-                'student_id'   => $student->id,
+                'student_id' => $student->id,
                 'cycle_number' => 1,
                 'period_month' => (int) now()->format('n'),
-                'period_year'  => (int) now()->format('Y'),
-                'status'       => 'aktif',
+                'period_year' => (int) now()->format('Y'),
+                'status' => 'aktif',
             ]);
 
-            $total = $registrationFee + $pricePerCycle; // instansi: tanpa diskon
-
+            $total = $registrationFee + $pricePerCycle;
             $invoice = Invoice::create([
-                'invoice_number'   => 'TMP-' . Str::uuid(),
-                'student_id'       => $student->id,
+                'invoice_number' => 'TMP-' . \Illuminate\Support\Str::uuid(),
+                'student_id' => $student->id,
                 'billing_month_id' => $billingMonth->id,
-                'base_amount'      => $pricePerCycle,
+                'base_amount' => $pricePerCycle,
                 'registration_fee' => $registrationFee,
-                'discount_amount'  => 0,
-                'total_amount'     => $total,
-                'due_date'         => now()->addDays(14),
-                'status'           => 'belum_bayar',
+                'discount_amount' => 0,
+                'total_amount' => $total,
+                'due_date' => now()->addDays(14),
+                'status' => 'belum_bayar',
             ]);
-            $invoice->update([
-                'invoice_number' => 'INV-' . now()->format('Ymd') . '-' . str_pad((string) $invoice->id, 5, '0', STR_PAD_LEFT),
-            ]);
+            $invoice->update(['invoice_number' => 'INV-' . now()->format('Ymd') . '-' . str_pad((string) $invoice->id, 5, '0', STR_PAD_LEFT)]);
 
             $this->notifyNewRegistration($student->name);
-
             return ['student' => $student->fresh(), 'invoice' => $invoice->fresh()];
         });
     }

@@ -24,10 +24,15 @@ class Student extends Model
         'school_id',
         'status',
         'registration_type',
+        'period_quota',
+        'joined_at',
+        'is_verified'
     ];
     protected $casts = [
         'birth_date' => 'date',
+        'joined_at'        => 'date',
         'photo_permission' => 'boolean',
+        'is_verified' => 'boolean',
     ];
 
     public function parent()
@@ -66,5 +71,10 @@ class Student extends Model
     public function program()
     {
         return $this->belongsTo(Program::class);
+    }
+
+    public function scopeVerified($q)
+    {
+        return $q->where('is_verified', true);
     }
 }

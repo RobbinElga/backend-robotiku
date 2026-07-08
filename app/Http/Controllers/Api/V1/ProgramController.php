@@ -13,9 +13,9 @@ class ProgramController extends Controller
 
     public function index(): JsonResponse
     {
-        $programs = Program::where('is_active', true)
+        $programs = Program::where('is_visible', true)
             ->orderBy('name')
-            ->get(['id', 'name', 'level', 'registration_fee', 'price_per_cycle']);
+            ->get(['id', 'name', 'registration_fee', 'price_per_cycle']);
 
         return $this->success($programs, 'Daftar program.');
     }

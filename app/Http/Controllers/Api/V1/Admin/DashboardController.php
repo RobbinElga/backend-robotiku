@@ -21,8 +21,8 @@ class DashboardController extends Controller
             ->pluck('total', 'pipeline_status');
 
         return $this->success([
-            'siswa_aktif'         => Student::where('status', 'aktif')->count(),
-            'siswa_total'         => Student::count(),
+            'siswa_aktif'         => Student::verified()->where('status', 'aktif')->count(),
+            'siswa_total'         => Student::verified()->count(),
             'pendapatan'          => (float) Invoice::where('status', 'lunas')->sum('total_amount'),
             'tagihan_belum_bayar' => Invoice::where('status', 'belum_bayar')->count(),
             'menunggu_verifikasi' => Invoice::where('status', 'menunggu_verifikasi')->count(),

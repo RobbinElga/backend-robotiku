@@ -24,8 +24,10 @@ class DaftarMandiriRequest extends FormRequest
             'photo_permission' => ['required', 'boolean'],
             'parent_name'      => ['required', 'string', 'max:120'],
             'phone'            => ['required', 'string', 'max:20'],
-            'class_id'         => ['required', 'integer', 'exists:classes,id'],
+            'program_id'       => ['required', 'exists:programs,id'],
             'promo_code'       => ['nullable', 'string', 'max:50'],
+            'greeting'  => ['nullable', 'in:ayah,bunda'],
+            'phone_alt' => ['nullable', 'string', 'max:20'],
         ];
     }
 }

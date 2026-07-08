@@ -31,7 +31,7 @@ class ProgramController extends Controller
 
     public function show(Program $program): JsonResponse
     {
-        $program->loadCount(['students', 'classes']);
+        $program->loadCount(['students', 'classes',]);
         return $this->success($program, 'Detail program.');
     }
 

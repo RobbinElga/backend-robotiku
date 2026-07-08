@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class SchoolNote extends Model
 {
     public $timestamps = false; // hanya created_at (default DB)
-    protected $fillable = ['school_id', 'note', 'created_by'];
+    protected $fillable = ['school_id', 'type', 'note', 'created_by', 'photo', 'kind', 'latitude', 'longitude'];
+    protected $casts = ['latitude' => 'float', 'longitude' => 'float'];
 
     public function school()
     {

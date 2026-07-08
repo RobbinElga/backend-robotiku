@@ -40,4 +40,8 @@ class Invoice extends Model
     {
         return $this->hasMany(Payment::class);
     }
+    public function settlements()
+    {
+        return $this->belongsToMany(\App\Models\SchoolSettlement::class, 'school_settlement_invoices');
+    }
 }

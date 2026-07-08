@@ -19,7 +19,7 @@ class StoreArticleRequest extends FormRequest
             'content'  => ['nullable', 'string'],
             'category' => ['nullable', 'string', 'max:60'],
             'status'   => ['required', 'in:draft,publish'],
-            'cover'    => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
+            'cover_image' => ['nullable', 'string'],
         ];
     }
 }

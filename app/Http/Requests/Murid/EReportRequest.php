@@ -32,7 +32,11 @@ class EReportRequest extends FormRequest
             'behavior_responsibility' => $grade,
 
             'comments'  => ['nullable', 'string', 'max:2000'],
-            'signature' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
+            'topics'              => ['nullable', 'array'],
+            'topics.*.topic'      => ['nullable', 'string', 'max:120'],
+            'topics.*.activity'   => ['nullable', 'string', 'max:120'],
+            'report_place'        => ['nullable', 'string', 'max:80'],
+            'report_date'         => ['nullable', 'date'],
         ];
     }
 }

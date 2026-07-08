@@ -31,6 +31,7 @@ class PaymentController extends Controller
         }
 
         $invoices = Invoice::where('student_id', $student->id)
+            ->with(['payments' => fn($q) => $q->latest()])
             ->orderByDesc('created_at')
             ->get();
 
@@ -72,8 +73,9 @@ class PaymentController extends Controller
 
         $invoices = Invoice::whereHas('student', fn($q) => $q->where('school_id', $admin->school_id))
             ->with('student:id,name,student_code')
-            ->orderByDesc('created_at')
+            ->when($request->filled('student_id'), fn($q) => $q->where('student_id', $request->student_id)) // ← tambah
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
+            ->orderByDesc('created_at')
             ->paginate($request->integer('per_page', 20));
 
         return $this->success($invoices, 'Tagihan murid instansi.');

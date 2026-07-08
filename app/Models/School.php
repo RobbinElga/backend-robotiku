@@ -17,9 +17,25 @@ class School extends Model
         'bank_account',
         'pipeline_status',
         'is_mou',
+        'commission_percent',
+        'qris_image',
+        'photo',
+        'registration_fee',
+        'price_per_cycle',
         'created_by',
+        'latitude',
+        'longitude',
+        'geofence_radius'
     ];
-    protected $casts = ['is_mou' => 'boolean'];
+    protected $casts = [
+        'is_mou'             => 'boolean',
+        'commission_percent' => 'decimal:2',
+        'registration_fee'   => 'integer',
+        'price_per_cycle'    => 'integer',
+        'latitude' => 'float',
+        'longitude' => 'float',
+        'geofence_radius' => 'integer'
+    ];
 
     public function admins()
     {
@@ -40,5 +56,13 @@ class School extends Model
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+    public function mous()
+    {
+        return $this->hasMany(Mou::class);
+    }
+    public function classes()
+    {
+        return $this->hasMany(Kelas::class);
     }
 }

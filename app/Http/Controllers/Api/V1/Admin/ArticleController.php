@@ -91,4 +91,13 @@ class ArticleController extends Controller
 
         return $slug;
     }
+
+    public function uploadImage(Request $request): JsonResponse
+    {
+        $request->validate(['image' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120']]);
+
+        $path = ImageStorage::storeWebp($request->file('image'), 'articles'); // folder publik
+
+        return $this->success(['path' => $path, 'url' => '/api/v1/public-media/' . $path], 'Gambar terunggah.');
+    }
 }

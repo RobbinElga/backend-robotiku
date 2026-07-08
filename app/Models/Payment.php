@@ -18,6 +18,7 @@ class Payment extends Model
         'verified_at',
         'status',
         'notes',
+        'verified_by_school_admin',
     ];
     protected $casts = ['verified_at' => 'datetime'];
 
@@ -32,5 +33,9 @@ class Payment extends Model
     public function statusLogs()
     {
         return $this->hasMany(PaymentStatusLog::class);
+    }
+    public function schoolVerifier()
+    {
+        return $this->belongsTo(\App\Models\SchoolAdmin::class, 'verified_by_school_admin');
     }
 }

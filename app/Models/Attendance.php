@@ -9,7 +9,7 @@ class Attendance extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['class_id', 'student_id', 'trainer_id', 'photo', 'status', 'report', 'attended_at'];
+    protected $fillable = ['class_id', 'student_id', 'trainer_id', 'photo', 'status', 'report', 'attended_at', 'session_id', 'score'];
     protected $casts = ['attended_at' => 'datetime'];
 
     public function kelas()
@@ -23,5 +23,10 @@ class Attendance extends Model
     public function trainer()
     {
         return $this->belongsTo(User::class, 'trainer_id');
+    }
+
+    public function session()
+    {
+        return $this->belongsTo(Session::class, 'session_id');
     }
 }

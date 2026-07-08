@@ -2,11 +2,12 @@
 
 namespace App\Services;
 
-use App\Models\Attendance;
 use App\Models\BillingMonth;
 use App\Models\Invoice;
 use App\Models\Notification;
+use App\Models\Session;
 use App\Models\Student;
+use App\Models\StudentStatusLog;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -14,83 +15,149 @@ use Illuminate\Support\Str;
 class BillingCycleService
 {
     /**
-     * Dipanggil setelah absensi "hadir" tersimpan.
-     * Tiap kelipatan 4 "hadir" → invoice siklus baru (harga dari Program siswa).
-     * CUTI / BERHENTI → tidak ada invoice baru.
+     * Dipicu saat murid HADIR di sesi PEKAN 4.
+     * → buat tagihan periode berikutnya (harga: instansi=sekolah, mandiri=program).
+     * → jika quota MoU habis → murid jadi Nonaktif (tak ditagih lagi).
      */
-    public function handleAttendance(Student $student): ?Invoice
+    public function handlePeriodCompletion(Student $student, Session $session): ?Invoice
     {
-        if (in_array($student->status, ['cuti', 'berhenti'], true)) {
-            return null;
+        if (in_array($student->status, ['nonaktif', 'lulus', 'cuti'], true)) return null;
+        if ((int) $session->week !== 4) return null; // hanya pekan terakhir memicu
+
+        $session->loadMissing('period');
+        $period = $session->period;
+        if (! $period) return null;
+
+        $next = $period->number + 1;
+
+        // Quota (instansi): period_quota; mandiri: null = tanpa batas
+        if ($student->period_quota !== null && $next > (int) $student->period_quota) {
+            if ($student->status === 'aktif') {
+                $old = $student->status;
+                $student->update(['status' => 'nonaktif']);
+                StudentStatusLog::create([
+                    'student_id' => $student->id,
+                    'old_status' => $old,
+                    'new_status' => 'nonaktif',
+                    'changed_by' => null,
+                ]);
+            }
+            return null; // quota habis → tidak buat tagihan
         }
 
-        $hadir = Attendance::where('student_id', $student->id)
-            ->where('status', 'hadir')
-            ->count();
+        // cegah dobel untuk periode yang sama
+        if (BillingMonth::where('student_id', $student->id)->where('cycle_number', $next)->exists()) return null;
 
-        if ($hadir === 0 || $hadir % 4 !== 0) {
-            return null; // belum genap kelipatan 4
-        }
+        return DB::transaction(function () use ($student, $next) {
+            $cycle = $this->cyclePrice($student);
 
-        // Invoice pertama = cycle 1 (saat daftar). Tiap 4 "hadir" → cycle berikutnya.
-        $cycleNumber = intdiv($hadir, 4) + 1;
-
-        // Cegah dobel bila absensi diedit / dipanggil ulang
-        $exists = BillingMonth::where('student_id', $student->id)
-            ->where('cycle_number', $cycleNumber)
-            ->exists();
-        if ($exists) {
-            return null;
-        }
-
-        return DB::transaction(function () use ($student, $cycleNumber) {
-            $student->loadMissing('program');
-            $pricePerCycle = (float) ($student->program?->price_per_cycle ?? 0);
-
-            $billingMonth = BillingMonth::create([
-                'student_id'   => $student->id,
-                'cycle_number' => $cycleNumber,
+            $month = BillingMonth::create([
+                'student_id' => $student->id,
+                'cycle_number' => $next,
                 'period_month' => (int) now()->format('n'),
-                'period_year'  => (int) now()->format('Y'),
-                'status'       => 'aktif',
+                'period_year' => (int) now()->format('Y'),
+                'status' => 'aktif',
             ]);
 
             $invoice = Invoice::create([
-                'invoice_number'   => 'TMP-' . Str::uuid(),
-                'student_id'       => $student->id,
-                'billing_month_id' => $billingMonth->id,
-                'base_amount'      => $pricePerCycle,
-                'registration_fee' => null,          // hanya invoice pertama
-                'discount_amount'  => 0,
-                'total_amount'     => $pricePerCycle,
-                'due_date'         => now()->addDays(7),
-                'status'           => 'belum_bayar',
+                'invoice_number' => 'TMP-' . Str::uuid(),
+                'student_id' => $student->id,
+                'billing_month_id' => $month->id,
+                'base_amount' => $cycle,
+                'registration_fee' => null,
+                'discount_amount' => 0,
+                'total_amount' => $cycle,
+                'due_date' => now()->addDays(7),
+                'status' => 'belum_bayar',
             ]);
-            $invoice->update([
-                'invoice_number' => 'INV-' . now()->format('Ymd') . '-' . str_pad((string) $invoice->id, 5, '0', STR_PAD_LEFT),
-            ]);
+            $invoice->update(['invoice_number' => 'INV-' . now()->format('Ymd') . '-' . str_pad((string) $invoice->id, 5, '0', STR_PAD_LEFT)]);
 
             $this->notifyNewInvoice($student->name, $invoice->invoice_number);
-
             return $invoice->fresh();
         });
     }
 
-    private function notifyNewInvoice(string $studentName, string $invoiceNumber): void
+    /** Harga per siklus: instansi → sekolah, mandiri → program. */
+    private function cyclePrice(Student $student): float
     {
-        $recipients = User::whereIn('role', ['admin_keuangan', 'super_admin'])
-            ->where('is_active', true)
-            ->pluck('id');
+        if ($student->school_id) {
+            $student->loadMissing('school');
+            return (float) ($student->school?->price_per_cycle ?? 0);
+        }
+        $student->loadMissing('program');
+        return (float) ($student->program?->price_per_cycle ?? 0);
+    }
 
-        foreach ($recipients as $userId) {
+    private function notifyNewInvoice(string $name, string $inv): void
+    {
+        foreach (User::whereIn('role', ['admin_keuangan', 'super_admin'])->where('is_active', true)->pluck('id') as $uid) {
             Notification::create([
                 'recipient_type' => 'user',
-                'recipient_id'   => $userId,
-                'title'          => 'Tagihan Baru',
-                'message'        => "Tagihan {$invoiceNumber} untuk {$studentName} telah dibuat.",
-                'type'           => 'pembayaran_baru',
-                'is_read'        => false,
+                'recipient_id' => $uid,
+                'title' => 'Tagihan Periode Baru',
+                'message' => "Tagihan {$inv} untuk {$name} telah dibuat.",
+                'type' => 'pembayaran_baru',
+                'is_read' => false,
             ]);
         }
+    }
+
+    /**
+     * Dipanggil saat murid HADIR di sesi Pekan-4.
+     * Menyelesaikan periode berjalan → buat tagihan periode BERIKUTNYA.
+     * Jika jatah periode (period_quota / MoU) habis → murid jadi Nonaktif.
+     */
+    public function completePeriod(Student $student): ?Invoice
+    {
+        if (in_array($student->status, ['nonaktif', 'lulus', 'cuti'], true)) {
+            return null;
+        }
+
+        return DB::transaction(function () use ($student) {
+            $billed = (int) BillingMonth::where('student_id', $student->id)->max('cycle_number'); // periode yang sudah ditagih
+
+            // Instansi: cek jatah periode dari MoU (mandiri: period_quota null = tak terbatas)
+            if ($student->period_quota !== null && $billed >= $student->period_quota) {
+                $student->update(['status' => 'nonaktif']); // jatah habis → berhenti tagih
+                \App\Models\StudentStatusLog::create([
+                    'student_id' => $student->id,
+                    'old_status' => 'aktif',
+                    'new_status' => 'nonaktif',
+                    'changed_by' => null, // sistem
+                ]);
+                return null;
+            }
+
+            $next = $billed + 1;
+            if (BillingMonth::where('student_id', $student->id)->where('cycle_number', $next)->exists()) {
+                return null; // sudah pernah ditagih (hindari dobel bila absensi diedit)
+            }
+
+            $price = $this->cyclePrice($student); // instansi→harga sekolah, mandiri→harga program
+
+            $month = BillingMonth::create([
+                'student_id' => $student->id,
+                'cycle_number' => $next,
+                'period_month' => (int) now()->format('n'),
+                'period_year' => (int) now()->format('Y'),
+                'status' => 'aktif',
+            ]);
+
+            $invoice = Invoice::create([
+                'invoice_number' => 'TMP-' . \Illuminate\Support\Str::uuid(),
+                'student_id' => $student->id,
+                'billing_month_id' => $month->id,
+                'base_amount' => $price,
+                'registration_fee' => null,
+                'discount_amount' => 0,
+                'total_amount' => $price,
+                'due_date' => now()->addDays(7),
+                'status' => 'belum_bayar',
+            ]);
+            $invoice->update(['invoice_number' => 'INV-' . now()->format('Ymd') . '-' . str_pad((string) $invoice->id, 5, '0', STR_PAD_LEFT)]);
+
+            $this->notifyNewInvoice($student->name, $invoice->invoice_number);
+            return $invoice->fresh();
+        });
     }
 }

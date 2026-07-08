@@ -19,6 +19,7 @@ class ProgramRequest extends FormRequest
             'registration_fee' => ['required', 'integer', 'min:0'],
             'price_per_cycle'  => ['required', 'integer', 'min:0'],
             'is_active'        => ['boolean'],
+            'is_visible' => ['sometimes', 'boolean'],
         ];
     }
 }
