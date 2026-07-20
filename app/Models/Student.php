@@ -26,7 +26,8 @@ class Student extends Model
         'registration_type',
         'period_quota',
         'joined_at',
-        'is_verified'
+        'is_verified',
+        'program_id',
     ];
     protected $casts = [
         'birth_date' => 'date',

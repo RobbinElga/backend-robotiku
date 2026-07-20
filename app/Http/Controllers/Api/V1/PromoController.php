@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PromoCheckRequest;
-use App\Models\BillingSetting;
+use App\Models\Program;
 use App\Services\PromoService;
 use App\Traits\ApiResponse;
 use DomainException;
@@ -18,14 +18,14 @@ class PromoController extends Controller
 
     public function check(PromoCheckRequest $request): JsonResponse
     {
-        $billing = BillingSetting::where('class_id', $request->class_id)->first();
+        $program = Program::find($request->program_id);
 
-        if (! $billing) {
-            return $this->error('Harga untuk kelas ini belum diatur.', 422);
+        if (! $program) {
+            return $this->error('Program tidak ditemukan.', 422);
         }
 
-        $registrationFee = (float) $billing->registration_fee;
-        $pricePerCycle   = (float) $billing->price_per_cycle;
+        $registrationFee = (float) $program->registration_fee;
+        $pricePerCycle   = (float) $program->price_per_cycle;
 
         try {
             [$promo, $discount] = $this->promo->validate($request->code, $registrationFee);

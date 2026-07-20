@@ -17,7 +17,15 @@ class Kelas extends Model
         'program_id',
         'school_id',
         'trainer_id',
+        'meetings_per_period',
+        'total_periods',
     ];
+
+    protected $casts = [
+        'meetings_per_period' => 'integer',
+        'total_periods'       => 'integer',
+    ];
+
 
     public function trainer()
     {

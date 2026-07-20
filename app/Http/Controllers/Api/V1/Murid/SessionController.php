@@ -42,12 +42,10 @@ class SessionController extends Controller
     public function start(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'class_id' => ['required', 'exists:classes,id'],
-            'period_id' => ['required', 'exists:periods,id'],
-            'week'      => ['required', 'integer', 'between:1,4'],
-            'latitude' => ['required', 'numeric'],
+            'class_id'  => ['required', 'exists:classes,id'],
+            'latitude'  => ['required', 'numeric'],
             'longitude' => ['required', 'numeric'],
-            'photo' => ['required', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
+            'photo'     => ['required', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
         ]);
         $kelas = Kelas::findOrFail($data['class_id']);
         abort_unless($this->isTrainerOf($kelas, $request->user()->id), 403, 'Kelas ini bukan kelas Anda.');
@@ -59,16 +57,21 @@ class SessionController extends Controller
             return $this->error('Anda di luar radius lokasi kelas ini.', 422);
         }
 
+        // Pekan ke-berapa dalam periode, mengikuti meetings_per_period kelas (display saja).
+        $perPeriod = max(1, (int) ($kelas->meetings_per_period ?: 4));
+        $done = Session::where('class_id', $kelas->id)->count();
+        $week = ($done % $perPeriod) + 1;
+
         $session = Session::create([
-            'class_id' => $kelas->id,
-            'period_id' => $data['period_id'],
-            'week' => $data['week'],
-            'trainer_id' => $request->user()->id,
-            'start_latitude' => $data['latitude'],
+            'class_id'        => $kelas->id,
+            'period_id'       => null,       // fitur Periode dilepas — tak dipakai lagi
+            'week'            => $week,
+            'trainer_id'      => $request->user()->id,
+            'start_latitude'  => $data['latitude'],
             'start_longitude' => $data['longitude'],
-            'start_photo' => ImageStorage::storeWebp($request->file('photo'), 'sessions'),
-            'started_at' => now(),
-            'status' => 'started',
+            'start_photo'     => ImageStorage::storeWebp($request->file('photo'), 'sessions'),
+            'started_at'      => now(),
+            'status'          => 'started',
         ]);
         $this->blast($kelas, 'wa_tpl_session_start');
         return $this->success($session, 'Sesi dimulai.', 201);
@@ -93,6 +96,7 @@ class SessionController extends Controller
     }
 
     /** Absensi 1 murid: status + foto + nilai + laporan → WA per status + billing/SPP. */
+    /** Absensi 1 murid: status + foto + nilai + laporan → WA per status + billing/SPP. */
     public function attend(Request $request, Session $session): JsonResponse
     {
         abort_unless($session->trainer_id === $request->user()->id, 403, 'Bukan sesi Anda.');
@@ -100,36 +104,42 @@ class SessionController extends Controller
 
         $data = $request->validate([
             'student_id' => ['required', 'exists:students,id'],
-            'status' => ['required', 'in:hadir,izin,sakit,tanpa_keterangan'],
-            'score' => ['nullable', 'in:A,B,C,D,E'],
-            'report' => ['nullable', 'string'],
-            'photo' => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
+            'status'     => ['required', 'in:hadir,izin,sakit,tanpa_keterangan'],
+            'score'      => ['nullable', 'in:A,B,C,D,E'],
+            'report'     => ['nullable', 'string'],
+            'photo'      => ['nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
         ]);
         $student = Student::with('parent')->findOrFail($data['student_id']);
         if ($student->status !== 'aktif') return $this->error('Murid tidak aktif.', 422);
         if (! $session->kelas->students()->where('students.id', $student->id)->exists()) return $this->error('Murid tidak di kelas ini.', 422);
 
-        $existing = Attendance::where('session_id', $session->id)->where('student_id', $student->id)->first();
-        $isNew = ! $existing;
+        $existing  = Attendance::where('session_id', $session->id)->where('student_id', $student->id)->first();
+        $isNew     = ! $existing;
+        $oldStatus = $existing?->status;
+
         $att = $existing ?? new Attendance();
         $att->fill([
-            'session_id' => $session->id,
-            'class_id' => $session->class_id,
-            'student_id' => $student->id,
-            'trainer_id' => $session->trainer_id,
-            'status' => $data['status'],
-            'score' => $data['score'] ?? null,
-            'report' => $data['report'] ?? null,
+            'session_id'  => $session->id,
+            'class_id'    => $session->class_id,
+            'student_id'  => $student->id,
+            'trainer_id'  => $session->trainer_id,
+            'status'      => $data['status'],
+            'score'       => $data['score'] ?? null,
+            'report'      => $data['report'] ?? null,
             'attended_at' => now(),
         ]);
         if ($request->hasFile('photo')) $att->photo = ImageStorage::storeWebp($request->file('photo'), 'attendances');
         $att->save();
 
-        if ($data['status'] === 'hadir' && (int) $session->week === 4) {
-            $invoice = $this->billing->completePeriod($student);
-            if ($invoice) {
-                $this->notifySpp($student); // WA reminder SPP
-            }
+        // WA notifikasi status kehadiran ke ortu — dikirim saat baru ATAU status berubah (hindari spam saat edit lain)
+        if ($isNew || $oldStatus !== $data['status']) {
+            $this->notifyStatus($student, $data['status']);
+        }
+
+        // Billing per-murid saat hadir (buat tagihan periode berikutnya bila batas periode tercapai)
+        if ($data['status'] === 'hadir') {
+            $invoice = $this->billing->onAttendance($student, $session->kelas);
+            if ($invoice) $this->notifySpp($student);
         }
 
         return $this->success(['attendance_id' => $att->id], 'Absensi tersimpan.', $isNew ? 201 : 200);

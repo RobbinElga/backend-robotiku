@@ -15,7 +15,7 @@ class PromoCheckRequest extends FormRequest
     {
         return [
             'code'     => ['required', 'string', 'max:50'],
-            'class_id' => ['required', 'integer', 'exists:classes,id'],
+            'program_id' => ['required', 'integer', 'exists:classes,id'],
         ];
     }
 }

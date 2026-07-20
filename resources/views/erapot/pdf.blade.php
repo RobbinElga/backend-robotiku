@@ -27,6 +27,10 @@
             font-size: 11px;
         }
 
+        body {
+            margin: 0;
+        }
+
         .t-center {
             text-align: center;
         }
@@ -68,19 +72,26 @@
             text-align: justify;
             width: 35%;
         }
+
+        .sign-line {
+            border-top: 1px solid #000;
+            display: inline-block;
+            padding-top: 2px;
+            min-width: 170px;
+        }
     </style>
 </head>
 
 <body>
-    {{-- Header + logo --}}
+    {{-- Header + logo pojok kiri atas --}}
     <table class="no-border">
         <tr>
-            <td style="width:90px">
+            <td style="width:90px; vertical-align:middle;">
                 @if ($logo)
                     <img src="{{ $logo }}" style="height:58px">
                 @endif
             </td>
-            <td class="t-center">
+            <td class="t-center" style="vertical-align:middle;">
                 <div class="b" style="font-size:16px">ROBOTIKU INDONESIA</div>
                 <div class="b" style="font-size:12px">TAHUN AJARAN {{ $ay }} ROBOTIKU CLUB REPORT CARD
                 </div>
@@ -187,18 +198,19 @@
         @endforeach
     </table>
 
-    {{-- Tanda tangan --}}
+    {{-- Tanda tangan trainer --}}
     <table class="no-border" style="margin-top:24px">
         <tr>
             <td style="width:60%"></td>
             <td class="t-center">
-                RobotiKU<br>{{ $r->report_place ?? 'Pontianak' }}{{ $date ? ', ' . $date : '' }}
+                RobotiKU<br>
+                {{ $r->report_place ?? 'Pontianak' }}{{ $date ? ', ' . $date : '' }}
                 @if ($sig)
-                <div><img src="{{ $sig }}" style="height:60px;margin-top:6px"></div>@else<div
-                        style="height:66px"></div>
+                    <div><img src="{{ $sig }}" style="height:60px; margin-top:6px"></div>
+                @else
+                    <div style="height:66px"></div>
                 @endif
-                <div style="border-top:1px solid #000;display:inline-block;padding-top:2px;min-width:170px">Trainer
-                </div>
+                <div class="sign-line">{{ optional($r->trainer)->name ?? 'Trainer' }}</div>
             </td>
         </tr>
     </table>

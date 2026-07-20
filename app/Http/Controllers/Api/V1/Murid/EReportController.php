@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Murid\EReportRequest;
 use App\Models\EReport;
 use App\Models\User;
-use App\Support\ImageStorage;
 use App\Support\Phone;
 use App\Traits\ApiResponse;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -215,17 +214,27 @@ class EReportController extends Controller
     /** TTD milik user login. */
     public function mySignature(Request $request): JsonResponse
     {
-        $u = $request->user();
-        return $this->success(['url' => $u->signature_image ? '/api/v1/media/' . $u->signature_image : null], 'TTD.');
+        return $this->success(['signature_image' => $request->user()->signature_image], 'TTD saya.');
     }
+
     public function updateMySignature(Request $request): JsonResponse
     {
-        $request->validate(['image' => ['required', 'file', 'mimes:jpg,jpeg,png', 'max:2048']]);
-        $path = ImageStorage::storeWebp($request->file('image'), 'signatures'); // folder terproteksi → /media
-        $u = $request->user();
-        $u->signature_image = $path;
-        $u->save();
-        return $this->success(['url' => '/api/v1/media/' . $path], 'TTD disimpan.');
+        $request->validate([
+            'signature' => ['required', 'file', 'mimes:png,jpg,jpeg', 'max:2048'], // TTD maks 2MB
+        ]);
+
+        $user = $request->user();
+
+        // hapus TTD lama bila ada
+        if ($user->signature_image && Storage::disk('local')->exists($user->signature_image)) {
+            Storage::disk('local')->delete($user->signature_image);
+        }
+
+        // Simpan APA ADANYA (PNG/JPG). JANGAN storeWebp — DomPDF tidak mendukung WebP.
+        $path = $request->file('signature')->store('signatures', 'local'); // folder terproteksi → /media
+        $user->update(['signature_image' => $path]);
+
+        return $this->success(['signature_image' => $path], 'Tanda tangan diperbarui.');
     }
 
     private function renderPdf(EReport $eReport): Response
@@ -234,7 +243,8 @@ class EReportController extends Controller
 
         $sig = null;
         if (($sp = optional($eReport->trainer)->signature_image) && Storage::disk('local')->exists($sp)) {
-            $sig = 'data:image/webp;base64,' . base64_encode(Storage::disk('local')->get($sp));
+            $mime = Storage::disk('local')->mimeType($sp) ?: 'image/png';   // ← bukan lagi image/webp
+            $sig = 'data:' . $mime . ';base64,' . base64_encode(Storage::disk('local')->get($sp));
         }
         $logo = null;
         if (is_file($lp = public_path('images/robotiku-logo.png'))) $logo = 'data:image/png;base64,' . base64_encode(file_get_contents($lp));

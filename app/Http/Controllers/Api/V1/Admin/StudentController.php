@@ -30,7 +30,7 @@ class StudentController extends Controller
     public function show(Student $student): JsonResponse
     {
         $student->load([
-            'parent:id,name,phone',
+            'parent:id,name,phone,greeting',
             'school:id,name',
             'classes:id,name',
             'statusLogs' => fn($q) => $q->orderByDesc('created_at'),

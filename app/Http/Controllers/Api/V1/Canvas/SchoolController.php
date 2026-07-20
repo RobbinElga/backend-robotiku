@@ -100,17 +100,17 @@ class SchoolController extends Controller
 
     public function addNote(Request $request, School $school): JsonResponse
     {
-        $isPertemuan = $request->input('type') === 'pertemuan';
+        $isPertemuan = $request->input('kind') === 'pertemuan';
 
         $data = $request->validate([
-            'type'      => ['required', 'in:pertemuan,audit'],
+            'kind'      => ['required', 'in:pertemuan,audit'],
             'note'      => ['required', 'string'],
             'photo'     => [$isPertemuan ? 'required' : 'nullable', 'file', 'mimes:jpg,jpeg,png', 'max:5120'],
             'latitude'  => [$isPertemuan ? 'required' : 'nullable', 'numeric', 'between:-90,90'],
             'longitude' => [$isPertemuan ? 'required' : 'nullable', 'numeric', 'between:-180,180'],
         ], [
-            'photo.required'     => 'Foto wajib untuk catatan pertemuan.',
-            'latitude.required'  => 'Lokasi wajib diambil untuk catatan pertemuan.',
+            'photo.required'    => 'Foto wajib untuk catatan pertemuan.',
+            'latitude.required' => 'Lokasi wajib diambil untuk catatan pertemuan.',
         ]);
 
         $photoPath = $request->hasFile('photo')
@@ -118,7 +118,7 @@ class SchoolController extends Controller
             : null;
 
         $note = $school->notes()->create([
-            'type'       => $data['type'],
+            'kind'       => $data['kind'],
             'note'       => $data['note'],
             'photo'      => $photoPath,
             'latitude'   => $data['latitude'] ?? null,

@@ -162,4 +162,32 @@ class SchoolPaymentController extends Controller
 
         return $this->success($q->paginate(20), 'Riwayat verifikasi pembayaran.');
     }
+
+    /** Daftar semua tagihan (invoice) murid instansi sekolah + ringkasan status. */
+    public function studentInvoices(Request $r): JsonResponse
+    {
+        $sid = $this->schoolId($r);
+
+        $base = Invoice::whereHas('student', fn($q) => $q->where('school_id', $sid)->where('registration_type', 'instansi'));
+
+        $summary = [
+            'belum_bayar' => (clone $base)->where('status', 'belum_bayar')->count(),
+            'menunggu'    => (clone $base)->where('status', 'menunggu_verifikasi')->count(),
+            'lunas'       => (clone $base)->where('status', 'lunas')->count(),
+            'outstanding' => (int) (clone $base)->whereIn('status', ['belum_bayar', 'menunggu_verifikasi'])->sum('total_amount'),
+        ];
+
+        $invoices = (clone $base)
+            ->with('student:id,name,student_code')
+            ->when($r->filled('status'), fn($x) => $x->where('status', $r->status))
+            ->when($r->filled('search'), function ($x) use ($r) {
+                $s = $r->search;
+                $x->whereHas('student', fn($w) => $w->where('name', 'like', "%$s%")->orWhere('student_code', 'like', "%$s%"));
+            })
+            ->orderByDesc('created_at')
+            ->paginate(20)
+            ->withQueryString();
+
+        return $this->success(['summary' => $summary, 'invoices' => $invoices], 'Tagihan murid.');
+    }
 }

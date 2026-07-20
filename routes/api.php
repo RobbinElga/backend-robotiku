@@ -35,6 +35,8 @@ use App\Http\Controllers\Api\V1\Sekolah\SchoolPaymentController;
 use App\Http\Controllers\Api\V1\Keuangan\FinanceController;
 use App\Http\Controllers\Api\V1\Admin\InstansiPaymentController;
 use App\Http\Controllers\Api\V1\Ortu\ParentDashboardController;
+use App\Http\Controllers\Api\V1\Admin\ParentController;
+use App\Http\Controllers\Api\V1\Bayar\BillingReminderController;
 
 
 Route::prefix('v1')->group(function () {
@@ -122,6 +124,8 @@ Route::prefix('v1')->group(function () {
 
         Route::get('bayar/sekolah/invoices', [PaymentController::class, 'schoolInvoices']);
         Route::post('bayar/sekolah/invoices/{invoice}/upload', [PaymentController::class, 'schoolUpload']);
+        Route::middleware('auth:sanctum')->post('sekolah/ganti-password', [SchoolAdminAuthController::class, 'changePassword']);
+        Route::get('sekolah/tagihan', [SchoolPaymentController::class, 'studentInvoices']);
 
         // Contoh route khusus role internal (placeholder uji RBAC)
         Route::get('ping/internal', fn() => response()->json(['status' => true, 'data' => 'pong', 'message' => 'OK']))
@@ -153,6 +157,13 @@ Route::prefix('v1')->group(function () {
             Route::delete('bank-accounts/{bankAccount}', [BankAccountController::class, 'destroy']);
             Route::get('keuangan/setoran', [FinanceController::class, 'settlements']);
             Route::post('keuangan/setoran/{settlement}/verifikasi', [FinanceController::class, 'verifySettlement']);
+            Route::get('tagihan/instansi/sekolah', [BillingReminderController::class, 'instansiSchools']);
+            Route::get('tagihan/instansi/sekolah/{school}', [BillingReminderController::class, 'instansiSchool']);
+            Route::get('tagihan/instansi/sekolah/{school}/wa', [BillingReminderController::class, 'instansiSchoolWaLink']);
+            Route::post('tagihan/instansi/sekolah/{school}/kirim', [BillingReminderController::class, 'instansiSchoolSend']);
+            Route::get('tagihan', [BillingReminderController::class, 'index']);
+            Route::get('tagihan/{invoice}/wa', [BillingReminderController::class, 'waLink']);
+            Route::post('tagihan/{invoice}/kirim', [BillingReminderController::class, 'send']);
         });
 
         Route::middleware('role:trainer')->group(function () {
@@ -233,6 +244,12 @@ Route::prefix('v1')->group(function () {
             Route::put('akun-sekolah/{schoolAdmin}', [SchoolAdminController::class, 'update']);
             Route::patch('akun-sekolah/{schoolAdmin}/password', [SchoolAdminController::class, 'resetPassword']);
             Route::patch('akun-sekolah/{schoolAdmin}/status', [SchoolAdminController::class, 'toggleActive']);
+            Route::get('akun/sekolah/mou-schools', [SchoolAdminController::class, 'mouSchools']);
+            Route::get('akun/sekolah', [SchoolAdminController::class, 'index']);
+            Route::post('akun/sekolah', [SchoolAdminController::class, 'store']);
+            Route::put('akun/sekolah/{schoolAdmin}', [SchoolAdminController::class, 'update']);
+            Route::post('akun/sekolah/{schoolAdmin}/reset-password', [SchoolAdminController::class, 'resetPassword']);
+            Route::post('akun/sekolah/{schoolAdmin}/toggle-active', [SchoolAdminController::class, 'toggleActive']);
             Route::get('periode', [PeriodController::class, 'index']);
             Route::post('periode', [PeriodController::class, 'store']);
             Route::put('periode/{period}', [PeriodController::class, 'update']);
@@ -241,6 +258,7 @@ Route::prefix('v1')->group(function () {
             Route::post('instansi/pembayaran/{payment}/verifikasi', [InstansiPaymentController::class, 'verify']);
             Route::post('pengaturan/ukuran-kaos', [SettingController::class, 'updateShirtChart']);
             Route::post('admin/artikel/upload', [ArticleController::class, 'uploadImage']);
+            Route::get('mou/periode', [ClassController::class, 'schoolPeriods']);
         });
 
         Route::middleware('role:super_admin')->group(function () {
@@ -254,6 +272,7 @@ Route::prefix('v1')->group(function () {
             Route::get('pengaturan/wa', [SettingController::class, 'wa']);
             Route::put('pengaturan/wa', [SettingController::class, 'updateWa']);
             Route::post('pengaturan/wa/test', [SettingController::class, 'testWa']);
+            Route::get('akun/orang-tua', [ParentController::class, 'index']);
         });
     });
 });

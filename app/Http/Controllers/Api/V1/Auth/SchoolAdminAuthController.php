@@ -44,6 +44,24 @@ class SchoolAdminAuthController extends Controller
         ], 'Login berhasil.');
     }
 
+    public function changePassword(Request $request): JsonResponse
+    {
+        $admin = $request->user(); // SchoolAdmin via Sanctum
+
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password'         => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        if (! \Illuminate\Support\Facades\Hash::check($data['current_password'], $admin->password)) {
+            return $this->error('Password saat ini salah.', 422);
+        }
+
+        $admin->update(['password' => \Illuminate\Support\Facades\Hash::make($data['password'])]);
+        $admin->tokens()->where('id', '!=', $admin->currentAccessToken()->id)->delete(); // logout perangkat lain
+        return $this->success(null, 'Password berhasil diperbarui.');
+    }
+
     public function logout(Request $request): JsonResponse
     {
         $request->user()->currentAccessToken()->delete();

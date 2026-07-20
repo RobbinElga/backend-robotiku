@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Models\Mou;
 
 class ClassController extends Controller
 {
@@ -30,6 +31,7 @@ class ClassController extends Controller
     public function store(StoreClassRequest $request): JsonResponse
     {
         $kelas = Kelas::create($request->safe()->except('trainers'));
+        $this->applyPeriods($kelas);
         $this->syncTrainers($kelas, $request->input('trainers', []));
         return $this->success($kelas->load('program:id,name', 'school:id,name', 'trainers:id,name'), 'Kelas dibuat.', 201);
     }
@@ -48,6 +50,7 @@ class ClassController extends Controller
     public function update(StoreClassRequest $request, Kelas $kelas): JsonResponse
     {
         $kelas->update($request->safe()->except('trainers'));
+        $this->applyPeriods($kelas);
         $this->syncTrainers($kelas, $request->input('trainers', []));
         return $this->success($kelas->fresh()->load('program:id,name', 'school:id,name', 'trainers:id,name'), 'Kelas diperbarui.');
     }
@@ -106,5 +109,27 @@ class ClassController extends Controller
         }
         $kelas->delete();
         return $this->success(null, 'Kelas dihapus.');
+    }
+
+    private function applyPeriods(Kelas $kelas): void
+    {
+        if (! $kelas->school_id) return; // mandiri → pakai input total_periods apa adanya
+
+        $periods = Mou::where('school_id', $kelas->school_id)
+            ->orderByDesc('start_date')->orderByDesc('id')
+            ->value('periods');
+
+        $kelas->update(['total_periods' => $periods]); // null bila sekolah belum punya MoU
+    }
+
+    public function schoolPeriods(Request $request): JsonResponse
+    {
+        $request->validate(['school_id' => ['required', 'exists:schools,id']]);
+
+        $periods = Mou::where('school_id', $request->school_id)
+            ->orderByDesc('start_date')->orderByDesc('id')
+            ->value('periods');
+
+        return $this->success(['periods' => $periods], 'Jumlah periode MoU sekolah.');
     }
 }
