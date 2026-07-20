@@ -123,6 +123,8 @@ class RegistrationService
         return DB::transaction(function () use ($data, $schoolId) {
             $school = \App\Models\School::findOrFail($schoolId);
 
+            // Sekolah kelola pendaftaran & pembayaran sendiri
+            $selfManaged     = (bool) $school->self_managed;
             $registrationFee = (float) $school->registration_fee;
             $pricePerCycle   = (float) $school->price_per_cycle;
             $quota           = (int) ($school->mous()->latest()->value('periods') ?? 0);
@@ -133,9 +135,9 @@ class RegistrationService
             $parent = StudentParent::updateOrCreate(
                 ['phone' => Phone::normalize($data['phone'])],
                 [
-                    'name' => $data['parent_name'],
-                    'greeting' => $data['greeting'] ?? null,
-                    'phone_alt' => isset($data['phone_alt']) ? Phone::normalize($data['phone_alt']) : null
+                    'name'      => $data['parent_name'],
+                    'greeting'  => $data['greeting'] ?? null,
+                    'phone_alt' => isset($data['phone_alt']) ? Phone::normalize($data['phone_alt']) : null,
                 ]
             );
 
@@ -149,34 +151,35 @@ class RegistrationService
                 'school_grade'      => $data['school_grade'] ?? null,
                 'allergy_notes'     => $data['allergy_notes'] ?? null,
                 'photo_permission'  => $data['photo_permission'] ?? false,
-                'parent_id'         => $parent->id,          // ← ortu ditautkan
+                'parent_id'         => $parent->id,
                 'school_id'         => $schoolId,
                 'program_id'        => $data['program_id'] ?? null,
                 'period_quota'      => $quota ?: null,
                 'joined_at'         => now()->toDateString(),
                 'status'            => 'aktif',
+                'is_verified'       => $selfManaged,   // ← kelola-sendiri: langsung sah jadi siswa
                 'registration_type' => 'instansi',
             ]);
 
             $billingMonth = BillingMonth::create([
-                'student_id' => $student->id,
+                'student_id'   => $student->id,
                 'cycle_number' => 1,
                 'period_month' => (int) now()->format('n'),
-                'period_year' => (int) now()->format('Y'),
-                'status' => 'aktif',
+                'period_year'  => (int) now()->format('Y'),
+                'status'       => 'aktif',
             ]);
 
             $total = $registrationFee + $pricePerCycle;
             $invoice = Invoice::create([
-                'invoice_number' => 'TMP-' . \Illuminate\Support\Str::uuid(),
-                'student_id' => $student->id,
+                'invoice_number'   => 'TMP-' . \Illuminate\Support\Str::uuid(),
+                'student_id'       => $student->id,
                 'billing_month_id' => $billingMonth->id,
-                'base_amount' => $pricePerCycle,
+                'base_amount'      => $pricePerCycle,
                 'registration_fee' => $registrationFee,
-                'discount_amount' => 0,
-                'total_amount' => $total,
-                'due_date' => now()->addDays(14),
-                'status' => 'belum_bayar',
+                'discount_amount'  => 0,
+                'total_amount'     => $total,
+                'due_date'         => now()->addDays(14),
+                'status'           => $selfManaged ? 'lunas' : 'belum_bayar',  // ← langsung jadi kewajiban sekolah
             ]);
             $invoice->update(['invoice_number' => 'INV-' . now()->format('Ymd') . '-' . str_pad((string) $invoice->id, 5, '0', STR_PAD_LEFT)]);
 
