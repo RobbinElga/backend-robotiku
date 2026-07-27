@@ -12,12 +12,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // 1) longgarkan enum agar bisa memetakan data lama
-        DB::statement("ALTER TABLE students MODIFY status ENUM('aktif','cuti','berhenti','nonaktif','lulus') NOT NULL DEFAULT 'aktif'");
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE students MODIFY status ENUM('aktif','cuti','berhenti','nonaktif','lulus') NOT NULL DEFAULT 'aktif'");
+        }
         // 2) petakan 'berhenti' → 'nonaktif'
         DB::table('students')->where('status', 'berhenti')->update(['status' => 'nonaktif']);
-        // 3) kunci enum final
-        DB::statement("ALTER TABLE students MODIFY status ENUM('aktif','nonaktif','lulus','cuti') NOT NULL DEFAULT 'aktif'");
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE students MODIFY status ENUM('aktif','nonaktif','lulus','cuti') NOT NULL DEFAULT 'aktif'");
+        }
 
         Schema::table('students', function (Blueprint $t) {
             $t->unsignedInteger('period_quota')->nullable()->after('registration_type'); // instansi: dari MoU; mandiri: null (unlimited)
@@ -27,6 +29,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('students', fn(Blueprint $t) => $t->dropColumn(['period_quota', 'joined_at']));
-        DB::statement("ALTER TABLE students MODIFY status ENUM('aktif','cuti','berhenti') NOT NULL DEFAULT 'aktif'");
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE students MODIFY status ENUM('aktif','cuti','berhenti') NOT NULL DEFAULT 'aktif'");
+        }
     }
 };

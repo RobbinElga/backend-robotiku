@@ -18,9 +18,13 @@ return new class extends Migration
         });
 
         // status: hadir|izin|tidak_hadir → hadir|izin|sakit|tanpa_keterangan
-        DB::statement("ALTER TABLE attendances MODIFY status ENUM('hadir','izin','tidak_hadir','sakit','tanpa_keterangan') NOT NULL");
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE attendances MODIFY status ENUM('hadir','izin','tidak_hadir','sakit','tanpa_keterangan') NOT NULL");
+        }
         DB::table('attendances')->where('status', 'tidak_hadir')->update(['status' => 'tanpa_keterangan']);
-        DB::statement("ALTER TABLE attendances MODIFY status ENUM('hadir','izin','sakit','tanpa_keterangan') NOT NULL");
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE attendances MODIFY status ENUM('hadir','izin','sakit','tanpa_keterangan') NOT NULL");
+        }
     }
     public function down(): void
     {
@@ -28,6 +32,8 @@ return new class extends Migration
             $t->dropForeign(['session_id']);
             $t->dropColumn(['session_id', 'score']);
         });
-        DB::statement("ALTER TABLE attendances MODIFY status ENUM('hadir','izin','tidak_hadir') NOT NULL");
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE attendances MODIFY status ENUM('hadir','izin','tidak_hadir') NOT NULL");
+        }
     }
 };

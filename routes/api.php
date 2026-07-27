@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\Admin\PeriodController;
 use App\Http\Controllers\Api\V1\Sekolah\SchoolPaymentController;
 use App\Http\Controllers\Api\V1\Keuangan\FinanceController;
+use App\Http\Controllers\Api\V1\Keuangan\KeuanganDashboardController;
 use App\Http\Controllers\Api\V1\Admin\InstansiPaymentController;
 use App\Http\Controllers\Api\V1\Ortu\ParentDashboardController;
 use App\Http\Controllers\Api\V1\Admin\ParentController;
@@ -155,6 +156,9 @@ Route::prefix('v1')->group(function () {
             Route::post('bank-accounts', [BankAccountController::class, 'store']);
             Route::put('bank-accounts/{bankAccount}', [BankAccountController::class, 'update']);
             Route::delete('bank-accounts/{bankAccount}', [BankAccountController::class, 'destroy']);
+            Route::get('keuangan/dashboard', [KeuanganDashboardController::class, 'index']);
+            Route::get('keuangan/dashboard/kpi', [KeuanganDashboardController::class, 'kpi']);
+            Route::get('keuangan/dashboard/trend', [KeuanganDashboardController::class, 'trend']);
             Route::get('keuangan/setoran', [FinanceController::class, 'settlements']);
             Route::post('keuangan/setoran/{settlement}/verifikasi', [FinanceController::class, 'verifySettlement']);
             Route::get('tagihan/instansi/sekolah', [BillingReminderController::class, 'instansiSchools']);
