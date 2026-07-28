@@ -25,7 +25,8 @@ class School extends Model
         'created_by',
         'latitude',
         'longitude',
-        'geofence_radius'
+        'geofence_radius',
+        'self_managed'
     ];
     protected $casts = [
         'is_mou'             => 'boolean',
@@ -34,7 +35,8 @@ class School extends Model
         'price_per_cycle'    => 'integer',
         'latitude' => 'float',
         'longitude' => 'float',
-        'geofence_radius' => 'integer'
+        'geofence_radius' => 'integer',
+        'self_managed' => 'boolean'
     ];
 
     public function admins()

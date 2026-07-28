@@ -178,14 +178,12 @@ class BillingCycleService
             ->where('status', 'hadir')
             ->count();
 
-        // hanya bertindak tepat di batas periode (kelipatan pertemuan/periode)
         if ($hadir === 0 || $hadir % $perPeriod !== 0) return null;
 
         $completedPeriods = intdiv($hadir, $perPeriod);
         $nextPeriod       = $completedPeriods + 1;
         $totalPeriods     = $kelas->total_periods !== null ? (int) $kelas->total_periods : null;
 
-        // seluruh periode selesai → nonaktif, tak ada tagihan baru
         if ($totalPeriods !== null && $nextPeriod > $totalPeriods) {
             if ($student->status === 'aktif') {
                 $student->update(['status' => 'nonaktif']);
@@ -199,10 +197,13 @@ class BillingCycleService
             return null;
         }
 
-        // cegah dobel untuk periode yang sama (mis. absensi diedit)
         if (BillingMonth::where('student_id', $student->id)->where('cycle_number', $nextPeriod)->exists()) return null;
 
-        return DB::transaction(function () use ($student, $nextPeriod) {
+        // Sekolah kelola-sendiri → tagihan langsung LUNAS (jadi kewajiban sekolah, siap disetor)
+        $student->loadMissing('school');
+        $selfManaged = (bool) optional($student->school)->self_managed;
+
+        return DB::transaction(function () use ($student, $nextPeriod, $selfManaged) {
             $price = $this->cyclePrice($student);
 
             $month = BillingMonth::create([
@@ -222,11 +223,14 @@ class BillingCycleService
                 'discount_amount'  => 0,
                 'total_amount'     => $price,
                 'due_date'         => now()->addDays(7),
-                'status'           => 'belum_bayar',
+                'status'           => $selfManaged ? 'lunas' : 'belum_bayar',
             ]);
             $invoice->update(['invoice_number' => 'INV-' . now()->format('Ymd') . '-' . str_pad((string) $invoice->id, 5, '0', STR_PAD_LEFT)]);
 
-            $this->notifyNewInvoice($student->name, $invoice->invoice_number);
+            // notifikasi tagihan hanya untuk yang perlu ditagih ke ortu
+            if (! $selfManaged) {
+                $this->notifyNewInvoice($student->name, $invoice->invoice_number);
+            }
             return $invoice->fresh();
         });
     }

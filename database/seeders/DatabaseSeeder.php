@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
             LandingSeeder::class,
             SchoolAdminSeeder::class,
             SampleSeeder::class,
+            KeuanganSeeder::class,
         ]);
     }
 }

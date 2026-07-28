@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\DaftarController;
 use App\Http\Controllers\Api\V1\SchoolStudentController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\V1\Bayar\PaymentController;
+use App\Http\Controllers\Api\V1\Canvas\CanvasDashboardController;
 use App\Http\Controllers\Api\V1\Canvas\SchoolController;
 use App\Http\Controllers\Api\V1\Bayar\PaymentVerificationController;
 use App\Http\Controllers\Api\V1\Murid\ProgressController;
@@ -33,6 +34,7 @@ use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\Admin\PeriodController;
 use App\Http\Controllers\Api\V1\Sekolah\SchoolPaymentController;
 use App\Http\Controllers\Api\V1\Keuangan\FinanceController;
+use App\Http\Controllers\Api\V1\Keuangan\KeuanganDashboardController;
 use App\Http\Controllers\Api\V1\Admin\InstansiPaymentController;
 use App\Http\Controllers\Api\V1\Ortu\ParentDashboardController;
 use App\Http\Controllers\Api\V1\Admin\ParentController;
@@ -132,6 +134,7 @@ Route::prefix('v1')->group(function () {
             ->middleware('role:super_admin,admin');
 
         Route::middleware('role:marketing,admin,super_admin')->group(function () {
+            Route::get('canvas/dashboard-marketing', [CanvasDashboardController::class, 'marketing']);
             Route::get('canvas/schools', [SchoolController::class, 'index']);
             Route::post('canvas/schools', [SchoolController::class, 'store']);
             Route::get('canvas/schools/{school}', [SchoolController::class, 'show']);
@@ -155,6 +158,9 @@ Route::prefix('v1')->group(function () {
             Route::post('bank-accounts', [BankAccountController::class, 'store']);
             Route::put('bank-accounts/{bankAccount}', [BankAccountController::class, 'update']);
             Route::delete('bank-accounts/{bankAccount}', [BankAccountController::class, 'destroy']);
+            Route::get('keuangan/dashboard', [KeuanganDashboardController::class, 'index']);
+            Route::get('keuangan/dashboard/kpi', [KeuanganDashboardController::class, 'kpi']);
+            Route::get('keuangan/dashboard/trend', [KeuanganDashboardController::class, 'trend']);
             Route::get('keuangan/setoran', [FinanceController::class, 'settlements']);
             Route::post('keuangan/setoran/{settlement}/verifikasi', [FinanceController::class, 'verifySettlement']);
             Route::get('tagihan/instansi/sekolah', [BillingReminderController::class, 'instansiSchools']);
@@ -211,7 +217,8 @@ Route::prefix('v1')->group(function () {
             Route::patch('siswa/{student}/status', [StudentController::class, 'changeStatus']);
             Route::put('canvas/schools/{school}', [SchoolController::class, 'update']);
             Route::delete('canvas/schools/{school}', [SchoolController::class, 'destroy']);
-            Route::get('canvas/rekap', [SchoolController::class, 'rekap']);
+            Route::get('canvas/analitik', [CanvasDashboardController::class, 'analitik']);
+            Route::post('canvas/target-kunjungan', [CanvasDashboardController::class, 'updateTarget']);
             Route::get('canvas/rekap/schools', [SchoolController::class, 'rekapSchools']);
             Route::get('canvas/rekap/schools/{school}/notes', [SchoolController::class, 'rekapSchoolNotes']);
             Route::get('kelas', [ClassController::class, 'index']);

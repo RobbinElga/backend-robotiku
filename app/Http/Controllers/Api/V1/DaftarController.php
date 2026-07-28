@@ -83,7 +83,13 @@ class DaftarController extends Controller
     {
         $data = $this->validateInstansi($request);
         $schoolId = $this->ensureMouSchool($data['school_id']);
-        unset($data['school_id']); // sisanya (termasuk program_id) diteruskan ke service
+
+        // Sekolah kelola pendaftaran sendiri → tidak bisa daftar lewat sistem
+        if (School::whereKey($schoolId)->value('self_managed')) {
+            return $this->error('Pendaftaran untuk sekolah ini dilakukan langsung melalui pihak sekolah, bukan melalui sistem.', 422);
+        }
+
+        unset($data['school_id']);
 
         try {
             $result = $this->registration->registerInstansi($data, $schoolId);

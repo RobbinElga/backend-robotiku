@@ -139,7 +139,7 @@ class SessionController extends Controller
         // Billing per-murid saat hadir (buat tagihan periode berikutnya bila batas periode tercapai)
         if ($data['status'] === 'hadir') {
             $invoice = $this->billing->onAttendance($student, $session->kelas);
-            if ($invoice) $this->notifySpp($student);
+            if ($invoice && $invoice->status === 'belum_bayar') $this->notifySpp($student);
         }
 
         return $this->success(['attendance_id' => $att->id], 'Absensi tersimpan.', $isNew ? 201 : 200);
