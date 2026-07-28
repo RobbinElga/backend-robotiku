@@ -28,7 +28,8 @@ class PaymentVerificationController extends Controller
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
             ->when(! $request->filled('status'), fn($q) => $q->where('status', 'menunggu_verifikasi'))
             ->orderByDesc('created_at')
-            ->paginate($request->integer('per_page', 20));
+            ->paginate($request->integer('per_page', 20))
+            ->through(fn($p) => $p->append('detail_route', 'verifikasi_route'));
 
         return $this->success($payments, 'Daftar pembayaran.');
     }

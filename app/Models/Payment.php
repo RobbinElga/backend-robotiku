@@ -38,4 +38,12 @@ class Payment extends Model
     {
         return $this->belongsTo(\App\Models\SchoolAdmin::class, 'verified_by_school_admin');
     }
+    public function getDetailRouteAttribute(): string
+    {
+        return url('/api/v1/bayar/payments/' . $this->id . '/proof');
+    }
+    public function getVerifikasiRouteAttribute(): string
+    {
+        return url('/api/v1/bayar/payments/' . $this->id . '/verify');
+    }
 }
