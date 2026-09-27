@@ -11,12 +11,20 @@ class MediaController extends Controller
     /** Folder yang boleh diakses publik (tanpa login). */
     private array $publicFolders = ['schools', 'articles', 'landing', 'settings']; // ← tambah 'settings'
 
-    /** Folder sensitif (khusus staf login). */
+    /** Folder media internal (termasuk bukti pembayaran orang tua). */
     private array $protectedFolders = ['attendances', 'sessions', 'signatures', 'school_notes', 'payments', 'settlements', 'seeder'];
 
-    /** Terproteksi (auth:sanctum) — foto anak/sesi/TTD. */
+    /** Folder sensitif staf internal yang WAJIB login Sanctum. */
+    private array $staffOnlyFolders = ['attendances', 'sessions', 'signatures', 'school_notes', 'settlements'];
+
+    /** Streaming media (folder sensitif wajib auth:sanctum; payments diizinkan untuk verifikasi/portal ortu). */
     public function show(string $path): BinaryFileResponse
     {
+        $folder = strtok($path, '/');
+        if (in_array($folder, $this->staffOnlyFolders, true)) {
+            abort_unless(auth('sanctum')->check(), 401, 'Unauthenticated.');
+        }
+
         return $this->stream($path, $this->protectedFolders);
     }
 
