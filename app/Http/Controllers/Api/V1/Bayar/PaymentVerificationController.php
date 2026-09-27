@@ -35,10 +35,17 @@ class PaymentVerificationController extends Controller
     }
 
      /** Lihat file bukti (terproteksi, tidak via URL publik). */
-    public function proof(Payment $payment): \Symfony\Component\HttpFoundation\BinaryFileResponse
+    public function proof(Request $request, Payment $payment): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         abort_unless($payment->proof_file && Storage::disk('local')->exists($payment->proof_file), 404);
-        return response()->file(Storage::disk('local')->path($payment->proof_file));
+
+        if ($request->boolean('download')) {
+            return response()->download(Storage::disk('local')->path($payment->proof_file));
+        }
+
+        return response()->file(Storage::disk('local')->path($payment->proof_file), [
+            'Content-Disposition' => 'inline',
+        ]);
     }
     public function verify(VerifyPaymentRequest $request, Payment $payment): JsonResponse
     {
