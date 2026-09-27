@@ -55,10 +55,10 @@ Terdapat *gap* ekspektasi alur pembayaran antara yang langsung ke Robotiku denga
 | 2 | Sesi & Finansial | Trigger invoice setelah target sesi kontrak selesai | 23/09/2026 | Backlog |
 | 3 | Finansial | Gambar bukti bayar tidak muncul (Storage/Bucket) | 23/09/2026 | Resolved (Phase 1) |
 | 4 | Finansial | Tagihan sekolah tidak masuk ke modul finance | 23/09/2026 | Urgent |
-| 5 | Siswa | Fitur edit biodata murid (role sekolah, superadmin, admin) | 24/09/2026 | Backlog |
-| 6 | Siswa | Bug transisi status Cuti $\rightarrow$ Berhenti & ubah label ke Nonaktif | 24/09/2026 | Backlog |
-| 7 | Siswa | Tabel riwayat status siswa (*immutable audit trail*) | 24/09/2026 | Backlog |
-| 8 | Siswa | Filter visibilitas murid yang belum bayar/verified | 24/09/2026 | To Review |
+| 5 | Siswa | Fitur edit biodata murid (role sekolah, superadmin, admin) | 24/09/2026 | Resolved (Phase 3) |
+| 6 | Siswa | Bug transisi status Cuti $\rightarrow$ Berhenti & ubah label ke Nonaktif | 24/09/2026 | Resolved (Phase 3) |
+| 7 | Siswa | Tabel riwayat status siswa (*immutable audit trail*) | 24/09/2026 | Resolved (Phase 3) |
+| 8 | Siswa | Filter visibilitas murid yang belum bayar/verified | 24/09/2026 | Resolved (Phase 3) |
 | 9 | Finansial / Ortu | Penyesuaian tampilan tagihan ortu sesuai 3 skema sekolah (v1/v2/v3) | 24/09/2026 | High |
 | 10 | Portal Ortu | Tampilkan nama sekolah di bawah sapaan orang tua | 24/09/2026 | UI Quick-fix |
 | 11 | Auth | Perbaikan alur & mekanisme logout | 24/09/2026 | Bugfix |

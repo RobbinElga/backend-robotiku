@@ -15,7 +15,8 @@ docs/
 │
 ├── features/                      # Spesifikasi fitur & panduan implementasi teknis
 │   ├── media-serving.md           # Serving bukti pembayaran, setoran, & media (Phase 1)
-│   └── finance-reconciliation.md  # Rekonsiliasi finansial & dashboard pendapatan (Phase 2)
+│   ├── finance-reconciliation.md  # Rekonsiliasi finansial & dashboard pendapatan (Phase 2)
+│   └── student-lifecycle.md       # Siklus hidup siswa: status, biodata, & visibilitas (Phase 3)
 │
 ├── api/                           # Spesifikasi & kontrak REST API
 │   └── landing/                   # Dokumentasi API Landing CMS
@@ -59,19 +60,27 @@ Spesifikasi teknis penyelesaian rekonsiliasi dan analitik omzet:
 - Anti-join `whereNotExists` guna mengeliminasi resiko *double-counting* antara invoice dan setoran sekolah.
 - Agregasi tren bulanan multi-driver kompatibel SQLite (CI/testing) & MySQL (production).
 
-### 4. [REST API Specs](api/landing/API_LANDING_SIMPEL.md)
+### 4. [Features: Siklus Hidup Siswa (Phase 3)](features/student-lifecycle.md)
+Spesifikasi teknis siklus hidup status, edit biodata, dan visibilitas murid:
+- Harmonisasi transisi status siswa: normalisasi input `'berhenti'` menjadi `'nonaktif'` dan guard status `'lulus'` khusus Super Admin.
+- Audit trail *immutable*: pencatatan riwayat perubahan status pada tabel `student_status_logs` (*insert-only*).
+- Service terpusat `StudentBiodataService`: sinkronisasi atomik data profil murid dan kontak orang tua (`parents`).
+- Endpoint pembaruan biodata untuk Admin (`/siswa/{student}`) dan Sekolah (`/sekolah/murid/{student}`) dengan pengamanan *multi-tenant isolation*.
+- Filter visibilitas dinamis `verification_status` (`verified`, `unverified`, `all`) untuk memunculkan pendaftar baru yang belum bayar/diverifikasi.
+
+### 5. [REST API Specs](api/landing/API_LANDING_SIMPEL.md)
 Katalog endpoint API untuk integrasi frontend dan layanan pihak ketiga:
 - [API Landing Ringkas](api/landing/API_LANDING_SIMPEL.md) & [Spesifikasi CMS Lengkap](api/landing/LANDING_CMS_API.md).
 - Format standar respons envelope JSON `{ status, data, message }`.
 - [OpenAPI YAML](api/landing/openapi.yaml) & [Koleksi Postman](api/landing/Robotiku-Landing.postman_collection.json).
 
-### 5. [Performance & Optimasi Query](performance/walkthrough.md)
+### 6. [Performance & Optimasi Query](performance/walkthrough.md)
 Analisis dan benchmark efisiensi backend:
 - [Walkthrough Optimasi](performance/walkthrough.md): Penambahan indeks gabungan pada tagihan, sekolah, dan registrasi.
 - [Evaluasi Baseline Awal](performance/baseline-before.md): Identifikasi *full table scan* dan *filesort*.
 - [Laporan Komparasi](performance/comparison-report.md): Pengurangan *latency* dan eliminasi *bottleneck* I/O database.
 
-### 6. [Roadmap & Logbook Masalah](roadmap/problems-meeting-notes.md)
+### 7. [Roadmap & Logbook Masalah](roadmap/problems-meeting-notes.md)
 Pelacakan kebutuhan bisnis dan catatan rapat operasional:
-- Matriks prioritas fitur (Urgent, High, Backlog).
+- Matriks prioritas fitur (Urgent, High, Backlog, Resolved).
 - Catatan kebutuhan sesi manual, multi-skema pembayaran sekolah, dan siklus hidup siswa.
