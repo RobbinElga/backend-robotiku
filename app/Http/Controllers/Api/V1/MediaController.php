@@ -11,7 +11,7 @@ class MediaController extends Controller
     private array $publicFolders = ['schools', 'articles', 'landing', 'settings']; // ← tambah 'settings'
 
     /** Folder sensitif (khusus staf login). */
-    private array $protectedFolders = ['attendances', 'sessions', 'signatures', 'school_notes', 'payments', 'settlements'];
+    private array $protectedFolders = ['attendances', 'sessions', 'signatures', 'school_notes', 'payments', 'settlements', 'seeder'];
 
     /** Terproteksi (auth:sanctum) — foto anak/sesi/TTD. */
     public function show(string $path)
