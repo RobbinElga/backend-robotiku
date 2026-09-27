@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
@@ -11,10 +13,20 @@ use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Exports\StudentsExport;
+use App\Http\Requests\Admin\StudentStatusRequest;
+use App\Http\Requests\Admin\UpdateStudentBiodataRequest;
+use App\Models\SchoolAdmin;
+use App\Models\StudentParent;
+use App\Services\StudentBiodataService;
+use Illuminate\Support\Facades\DB;
 
 class StudentController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(
+        private readonly StudentBiodataService $biodataService = new StudentBiodataService(),
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -39,47 +51,72 @@ class StudentController extends Controller
         return $this->success($student, 'Detail siswa.');
     }
 
-    public function changeStatus(Request $request, Student $student): JsonResponse
+    public function changeStatus(StudentStatusRequest $request, Student $student): JsonResponse
     {
-        // Petakan 'berhenti' ke 'nonaktif' untuk backward compatibility
-        if ($request->input('status') === 'berhenti') {
-            $request->merge(['status' => 'nonaktif']);
+        $newStatus = $request->validated('status');
+        if ($newStatus === 'berhenti') {
+            $newStatus = 'nonaktif';
         }
 
-        $data = $request->validate([
-            'status' => ['required', 'in:aktif,nonaktif,lulus,cuti'],
-            'note'   => ['nullable', 'string'],
-        ]);
-
-        if ($student->status === $data['status']) {
-            return $this->error('Status murid sudah ' . $data['status'] . '.', 422);
+        if ($student->status === $newStatus) {
+            return $this->error('Status murid sudah ' . $newStatus . '.', 422);
         }
 
         // "lulus" hanya Super Admin
-        if ($data['status'] === 'lulus' && $request->user()->role !== 'super_admin') {
+        if ($newStatus === 'lulus' && $request->user()?->role !== 'super_admin') {
             return $this->error('Status "Lulus" hanya bisa diubah oleh Super Admin.', 403);
         }
 
-        $old = $student->status;
-        $student->update(['status' => $data['status']]);
-        StudentStatusLog::create([
-            'student_id'      => $student->id,
-            'old_status'      => $old,
-            'new_status'      => $data['status'],
-            'note'            => $data['note'] ?? null,
-            'changed_by_type' => 'user',
-            'changed_by'      => $request->user()->id,
-        ]);
+        $oldStatus = $student->status;
+        $user = $request->user();
+        $changedByType = $user instanceof SchoolAdmin ? 'school_admin' : 'user';
+
+        DB::transaction(function () use ($student, $newStatus, $oldStatus, $request, $changedByType, $user) {
+            $student->update(['status' => $newStatus]);
+            StudentStatusLog::create([
+                'student_id'      => $student->id,
+                'old_status'      => $oldStatus,
+                'new_status'      => $newStatus,
+                'note'            => $request->validated('note'),
+                'changed_by_type' => $changedByType,
+                'changed_by'      => $user?->id,
+            ]);
+        });
 
         return $this->success($student->fresh(), 'Status murid diperbarui.');
     }
 
-    /** Query dasar Data Siswa — hanya siswa yang SUDAH terverifikasi. */
+    public function update(UpdateStudentBiodataRequest $request, Student $student): JsonResponse
+    {
+        $this->biodataService->update($student, $request->validated());
+
+        $student->load([
+            'parent:id,name,phone,greeting,phone_alt',
+            'school:id,name',
+            'program:id,name',
+            'classes:id,name',
+        ]);
+
+        return $this->success($student, 'Biodata murid berhasil diperbarui.');
+    }
+
+    public function updateBiodata(UpdateStudentBiodataRequest $request, Student $student): JsonResponse
+    {
+        return $this->update($request, $student);
+    }
+
+    /** Query dasar Data Siswa — filter dinamis via query param verification_status. */
     private function filtered(Request $request)
     {
+        $verificationStatus = $request->input('verification_status', 'verified');
+        if (! in_array($verificationStatus, ['verified', 'unverified', 'all'], true)) {
+            $verificationStatus = 'verified';
+        }
+
         return Student::query()
             ->with(['parent:id,name,phone', 'school:id,name'])
-            ->where('is_verified', true)                  // ← pendaftar belum diverifikasi tidak dianggap siswa
+            ->when($verificationStatus === 'verified', fn($q) => $q->where('is_verified', true))
+            ->when($verificationStatus === 'unverified', fn($q) => $q->where('is_verified', false))
             ->when($request->filled('search'), fn($q) =>
             $q->where(fn($w) => $w->where('name', 'like', '%' . $request->search . '%')
                 ->orWhere('student_code', 'like', '%' . $request->search . '%')))

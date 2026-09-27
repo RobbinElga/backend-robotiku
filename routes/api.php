@@ -122,6 +122,8 @@ Route::prefix('v1')->group(function () {
         Route::get('sekolah/dashboard', [SchoolPortalController::class, 'kpi']);
         Route::get('sekolah/murid', [SchoolPortalController::class, 'students']);
         Route::get('sekolah/murid/{student}', [SchoolPortalController::class, 'showStudent']);
+        Route::put('sekolah/murid/{student}', [SchoolPortalController::class, 'updateStudent']);
+        Route::put('sekolah/murid/{student}/biodata', [SchoolPortalController::class, 'updateStudent']);
         // Admin Sekolah — daftar murid (controller cek instanceof SchoolAdmin)
         Route::post('sekolah/murid', [SchoolStudentController::class, 'store']);
         Route::post('sekolah/murid/preview-excel', [SchoolStudentController::class, 'previewExcel']);
@@ -225,6 +227,8 @@ Route::prefix('v1')->group(function () {
             Route::get('siswa/export/pdf', [StudentController::class, 'exportPdf']);
             Route::get('siswa', [StudentController::class, 'index']);
             Route::get('siswa/{student}', [StudentController::class, 'show']);
+            Route::put('siswa/{student}', [StudentController::class, 'update']);
+            Route::put('siswa/{student}/biodata', [StudentController::class, 'update']);
             Route::patch('siswa/{student}/status', [StudentController::class, 'changeStatus']);
             Route::put('canvas/schools/{school}', [SchoolController::class, 'update']);
             Route::delete('canvas/schools/{school}', [SchoolController::class, 'destroy']);

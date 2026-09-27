@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\V1\Sekolah;
 
 use App\Http\Controllers\Controller;
@@ -10,10 +12,18 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Support\ImageStorage;
+use App\Http\Requests\Admin\UpdateStudentBiodataRequest;
+use App\Models\StudentParent;
+use App\Services\StudentBiodataService;
+use Illuminate\Support\Facades\DB;
 
 class SchoolPortalController extends Controller
 {
     use ApiResponse;
+
+    public function __construct(
+        private readonly StudentBiodataService $biodataService = new StudentBiodataService(),
+    ) {}
 
     private function adminOr403(Request $r): ?SchoolAdmin
     {
@@ -68,7 +78,14 @@ class SchoolPortalController extends Controller
         $admin = $this->adminOr403($request);
         if (! $admin) return $this->error('Khusus Admin Sekolah.', 403);
 
-        $students = Student::where('school_id', $admin->school_id)->verified()   // ← hanya siswa terverifikasi
+        $verificationStatus = $request->input('verification_status', 'verified');
+        if (! in_array($verificationStatus, ['verified', 'unverified', 'all'], true)) {
+            $verificationStatus = 'verified';
+        }
+
+        $students = Student::where('school_id', $admin->school_id)
+            ->when($verificationStatus === 'verified', fn($q) => $q->where('is_verified', true))
+            ->when($verificationStatus === 'unverified', fn($q) => $q->where('is_verified', false))
             ->with('classes:id,name')
             ->when($request->filled('search'), fn($q) => $q->where('name', 'like', '%' . $request->search . '%'))
             ->when($request->filled('status'), fn($q) => $q->where('status', $request->status))
@@ -76,6 +93,24 @@ class SchoolPortalController extends Controller
             ->paginate($request->integer('per_page', 15));
 
         return $this->success($students, 'Daftar siswa sekolah.');
+    }
+
+    public function updateStudent(UpdateStudentBiodataRequest $request, Student $student): JsonResponse
+    {
+        $admin = $this->adminOr403($request);
+        if (! $admin) return $this->error('Khusus Admin Sekolah.', 403);
+        if ($student->school_id !== $admin->school_id) return $this->error('Murid bukan dari sekolah Anda.', 403);
+
+        $this->biodataService->update($student, $request->validated());
+
+        $student->load(['parent:id,name,phone,greeting,phone_alt', 'program:id,name', 'classes:id,name']);
+
+        return $this->success($student, 'Biodata murid berhasil diperbarui.');
+    }
+
+    public function updateBiodata(UpdateStudentBiodataRequest $request, Student $student): JsonResponse
+    {
+        return $this->updateStudent($request, $student);
     }
 
     public function rekening(Request $request): JsonResponse
