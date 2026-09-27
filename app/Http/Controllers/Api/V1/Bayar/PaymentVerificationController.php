@@ -34,7 +34,7 @@ class PaymentVerificationController extends Controller
         return $this->success($payments, 'Daftar pembayaran.');
     }
 
-     /** Lihat file bukti (terproteksi, tidak via URL publik). */
+    /** Lihat file bukti (terproteksi, tidak via URL publik). */
     public function proof(Request $request, Payment $payment): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         abort_unless($payment->proof_file && Storage::disk('local')->exists($payment->proof_file), 404);
