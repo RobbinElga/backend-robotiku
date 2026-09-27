@@ -20,9 +20,12 @@
 /public/storage
 /storage/*.key
 /storage/pail
+/storage/app/public/proofs
+/storage/app/private/proofs
 /vendor
 _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
 /.agents
+storage/framework/
