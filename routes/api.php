@@ -106,11 +106,14 @@ Route::prefix('v1')->group(function () {
         Route::post('sekolah/pembayaran/upload', [SchoolPaymentController::class, 'collectiveUpload']);
 
         Route::get('sekolah/pembayaran-masuk', [SchoolPaymentController::class, 'pendingPayments']);
+        Route::get('sekolah/pembayaran/{payment}/proof', [SchoolPaymentController::class, 'proof']);
+        Route::get('school/payments/{payment}/proof', [SchoolPaymentController::class, 'proof']);
         Route::post('sekolah/pembayaran/{payment}/verifikasi', [SchoolPaymentController::class, 'verify']);
         Route::get('sekolah/setoran/tersedia', [SchoolPaymentController::class, 'availableInvoices']);
         Route::post('sekolah/setoran', [SchoolPaymentController::class, 'createSettlement']);
         Route::get('sekolah/setoran', [SchoolPaymentController::class, 'settlements']);
         Route::get('sekolah/setoran/{settlement}', [SchoolPaymentController::class, 'showSettlement']);
+        Route::get('sekolah/setoran/{settlement}/proof', [SchoolPaymentController::class, 'settlementProof']);
         Route::get('sekolah/pembayaran-riwayat', [SchoolPaymentController::class, 'paymentHistory']);
 
         Route::get('sekolah/rekening', [SchoolPortalController::class, 'rekening']);
@@ -162,6 +165,7 @@ Route::prefix('v1')->group(function () {
             Route::get('keuangan/dashboard/kpi', [KeuanganDashboardController::class, 'kpi']);
             Route::get('keuangan/dashboard/trend', [KeuanganDashboardController::class, 'trend']);
             Route::get('keuangan/setoran', [FinanceController::class, 'settlements']);
+            Route::get('keuangan/setoran/{settlement}/proof', [FinanceController::class, 'settlementProof']);
             Route::post('keuangan/setoran/{settlement}/verifikasi', [FinanceController::class, 'verifySettlement']);
             Route::get('tagihan/instansi/sekolah', [BillingReminderController::class, 'instansiSchools']);
             Route::get('tagihan/instansi/sekolah/{school}', [BillingReminderController::class, 'instansiSchool']);

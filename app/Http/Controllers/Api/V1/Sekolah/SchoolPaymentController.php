@@ -12,6 +12,8 @@ use App\Services\WhatsappService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SchoolPaymentController extends Controller
 {
@@ -63,6 +65,28 @@ class SchoolPaymentController extends Controller
             $payment->invoice->update(['status' => 'belum_bayar']);
         }
         return $this->success(null, 'Pembayaran diproses.');
+    }
+
+    /** Lihat file bukti pembayaran murid sekolah ini (inline preview). */
+    public function proof(Request $r, Payment $payment): BinaryFileResponse
+    {
+        $user = $r->user();
+        if ($user instanceof SchoolAdmin) {
+            $payment->loadMissing('invoice.student');
+            abort_unless($payment->invoice?->student?->school_id === $user->school_id, 403, 'Akses ditolak.');
+        } elseif (! in_array($user?->role, ['admin_keuangan', 'admin', 'super_admin'], true)) {
+            abort(403, 'Khusus Admin Sekolah atau Staf Keuangan.');
+        }
+
+        abort_unless($payment->proof_file && Storage::disk('local')->exists($payment->proof_file), 404);
+
+        if ($r->boolean('download')) {
+            return response()->download(Storage::disk('local')->path($payment->proof_file));
+        }
+
+        return response()->file(Storage::disk('local')->path($payment->proof_file), [
+            'Content-Disposition' => 'inline',
+        ]);
     }
 
     /** Lapis-2: invoice lunas yang belum disetor + ringkasan komisi. */
@@ -148,6 +172,27 @@ class SchoolPaymentController extends Controller
         $settlement->load(['invoices.student:id,name,student_code']);
 
         return $this->success($settlement, 'Detail setoran.');
+    }
+
+    /** Lihat file bukti setoran sekolah ini (inline preview). */
+    public function settlementProof(Request $r, SchoolSettlement $settlement): BinaryFileResponse
+    {
+        $user = $r->user();
+        if ($user instanceof SchoolAdmin) {
+            abort_unless($settlement->school_id === $user->school_id, 403, 'Akses ditolak.');
+        } elseif (! in_array($user?->role, ['admin_keuangan', 'admin', 'super_admin'], true)) {
+            abort(403, 'Khusus Admin Sekolah atau Staf Keuangan.');
+        }
+
+        abort_unless($settlement->proof_file && Storage::disk('local')->exists($settlement->proof_file), 404);
+
+        if ($r->boolean('download')) {
+            return response()->download(Storage::disk('local')->path($settlement->proof_file));
+        }
+
+        return response()->file(Storage::disk('local')->path($settlement->proof_file), [
+            'Content-Disposition' => 'inline',
+        ]);
     }
 
     /** Riwayat pembayaran ortu yang sudah diproses (diverifikasi / ditolak). */

@@ -9,6 +9,8 @@ use App\Services\WhatsappService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class FinanceController extends Controller
 {
@@ -34,6 +36,20 @@ class FinanceController extends Controller
             'note' => $data['note'] ?? null,
         ]);
         return $this->success(null, 'Setoran diproses.');
+    }
+
+    /** Lihat file bukti setoran sekolah (inline preview). */
+    public function settlementProof(Request $r, SchoolSettlement $settlement): BinaryFileResponse
+    {
+        abort_unless($settlement->proof_file && Storage::disk('local')->exists($settlement->proof_file), 404);
+
+        if ($r->boolean('download')) {
+            return response()->download(Storage::disk('local')->path($settlement->proof_file));
+        }
+
+        return response()->file(Storage::disk('local')->path($settlement->proof_file), [
+            'Content-Disposition' => 'inline',
+        ]);
     }
 
     /** Claim Pembayaran Kelas — pembayaran mandiri menunggu. */
