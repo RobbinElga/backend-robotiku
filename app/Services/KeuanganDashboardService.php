@@ -87,20 +87,30 @@ class KeuanganDashboardService
 
     private function pendapatan(Carbon $start, Carbon $end): float
     {
-        return (float) Invoice::query()
+        $directPayments = (float) Invoice::query()
             ->join('payments', 'invoices.id', '=', 'payments.invoice_id')
             ->where('payments.status', 'diverifikasi')
             ->whereBetween('payments.verified_at', [$start, $end])
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('school_settlement_invoices')
+                    ->join('school_settlements', 'school_settlement_invoices.school_settlement_id', '=', 'school_settlements.id')
+                    ->whereColumn('school_settlement_invoices.invoice_id', 'invoices.id')
+                    ->where('school_settlements.status', 'diverifikasi');
+            })
             ->sum('invoices.total_amount');
+
+        $settlements = (float) SchoolSettlement::query()
+            ->where('status', 'diverifikasi')
+            ->whereBetween('verified_at', [$start, $end])
+            ->sum('net_amount');
+
+        return $directPayments + $settlements;
     }
 
     private function pendapatanTahunIni(): float
     {
-        return (float) Invoice::query()
-            ->join('payments', 'invoices.id', '=', 'payments.invoice_id')
-            ->where('payments.status', 'diverifikasi')
-            ->whereBetween('payments.verified_at', [now()->startOfYear(), now()->endOfDay()])
-            ->sum('invoices.total_amount');
+        return $this->pendapatan(now()->startOfYear(), now()->endOfDay());
     }
 
     private function tagihanOutstanding(): float
@@ -131,15 +141,35 @@ class KeuanganDashboardService
         $start = now()->subYear()->startOfMonth();
 
         $driver = DB::connection()->getDriverName();
-        $monthExpr = $driver === 'sqlite'
+        $monthExprPayments = $driver === 'sqlite'
             ? "strftime('%Y-%m', payments.verified_at)"
             : "DATE_FORMAT(payments.verified_at, '%Y-%m')";
 
-        $rows = DB::table('invoices')
+        $monthExprSettlements = $driver === 'sqlite'
+            ? "strftime('%Y-%m', school_settlements.verified_at)"
+            : "DATE_FORMAT(school_settlements.verified_at, '%Y-%m')";
+
+        $directPayments = DB::table('invoices')
             ->join('payments', 'invoices.id', '=', 'payments.invoice_id')
             ->where('payments.status', 'diverifikasi')
             ->whereBetween('payments.verified_at', [$start, $end])
-            ->select(DB::raw("{$monthExpr} as month"), DB::raw('SUM(invoices.total_amount) as total'))
+            ->whereNotExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('school_settlement_invoices')
+                    ->join('school_settlements', 'school_settlement_invoices.school_settlement_id', '=', 'school_settlements.id')
+                    ->whereColumn('school_settlement_invoices.invoice_id', 'invoices.id')
+                    ->where('school_settlements.status', 'diverifikasi');
+            })
+            ->select(DB::raw("{$monthExprPayments} as month"), DB::raw('SUM(invoices.total_amount) as total'))
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->keyBy('month');
+
+        $settlements = DB::table('school_settlements')
+            ->where('status', 'diverifikasi')
+            ->whereBetween('verified_at', [$start, $end])
+            ->select(DB::raw("{$monthExprSettlements} as month"), DB::raw('SUM(net_amount) as total'))
             ->groupBy('month')
             ->orderBy('month')
             ->get()
@@ -150,9 +180,13 @@ class KeuanganDashboardService
 
         while ($cursor <= $end) {
             $key = $cursor->format('Y-m');
+
+            $pTotal = isset($directPayments[$key]) ? (float) $directPayments[$key]->total : 0;
+            $sTotal = isset($settlements[$key]) ? (float) $settlements[$key]->total : 0;
+
             $result[] = [
                 'month' => $cursor->translatedFormat('M'),
-                'total' => isset($rows[$key]) ? (float) $rows[$key]->total : 0,
+                'total' => $pTotal + $sTotal,
             ];
             $cursor->addMonth();
         }

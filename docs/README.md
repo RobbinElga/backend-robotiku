@@ -14,7 +14,8 @@ docs/
 │   └── onboarding.md              # Tech stack, request lifecycle, dan konvensi proyek
 │
 ├── features/                      # Spesifikasi fitur & panduan implementasi teknis
-│   └── media-serving.md           # Serving bukti pembayaran, setoran, & media (Phase 1)
+│   ├── media-serving.md           # Serving bukti pembayaran, setoran, & media (Phase 1)
+│   └── finance-reconciliation.md  # Rekonsiliasi finansial & dashboard pendapatan (Phase 2)
 │
 ├── api/                           # Spesifikasi & kontrak REST API
 │   └── landing/                   # Dokumentasi API Landing CMS
@@ -50,19 +51,27 @@ Dokumentasi teknis seputar serving media dan bukti bayar:
 - Hak akses multi-tenant: isolasi data antar Admin Sekolah (`SchoolAdmin`) dan Admin Keuangan.
 - Penjelasan integrasi komponen frontend (`ProofView`, `AuthImage`, modal verifikasi).
 
-### 3. [REST API Specs](api/landing/API_LANDING_SIMPEL.md)
+### 3. [Features: Rekonsiliasi Finansial & Dashboard Pendapatan (Phase 2)](features/finance-reconciliation.md)
+Spesifikasi teknis penyelesaian rekonsiliasi dan analitik omzet:
+- Siklus hidup transaksi: pembaruan status `SchoolSettlement`, `invoices` ('lunas'), `payments` ('diverifikasi'), dan aktivasi verifikasi `students`.
+- Idempotency guard & pencegahan *race condition* verifikasi ganda.
+- Formula agregasi pendapatan bersih (`net_amount`) pada `KeuanganDashboardService`.
+- Anti-join `whereNotExists` guna mengeliminasi resiko *double-counting* antara invoice dan setoran sekolah.
+- Agregasi tren bulanan multi-driver kompatibel SQLite (CI/testing) & MySQL (production).
+
+### 4. [REST API Specs](api/landing/API_LANDING_SIMPEL.md)
 Katalog endpoint API untuk integrasi frontend dan layanan pihak ketiga:
 - [API Landing Ringkas](api/landing/API_LANDING_SIMPEL.md) & [Spesifikasi CMS Lengkap](api/landing/LANDING_CMS_API.md).
 - Format standar respons envelope JSON `{ status, data, message }`.
 - [OpenAPI YAML](api/landing/openapi.yaml) & [Koleksi Postman](api/landing/Robotiku-Landing.postman_collection.json).
 
-### 4. [Performance & Optimasi Query](performance/walkthrough.md)
+### 5. [Performance & Optimasi Query](performance/walkthrough.md)
 Analisis dan benchmark efisiensi backend:
 - [Walkthrough Optimasi](performance/walkthrough.md): Penambahan indeks gabungan pada tagihan, sekolah, dan registrasi.
 - [Evaluasi Baseline Awal](performance/baseline-before.md): Identifikasi *full table scan* dan *filesort*.
 - [Laporan Komparasi](performance/comparison-report.md): Pengurangan *latency* dan eliminasi *bottleneck* I/O database.
 
-### 5. [Roadmap & Logbook Masalah](roadmap/problems-meeting-notes.md)
+### 6. [Roadmap & Logbook Masalah](roadmap/problems-meeting-notes.md)
 Pelacakan kebutuhan bisnis dan catatan rapat operasional:
 - Matriks prioritas fitur (Urgent, High, Backlog).
 - Catatan kebutuhan sesi manual, multi-skema pembayaran sekolah, dan siklus hidup siswa.

@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Api\V1\Keuangan;
 
 use App\Http\Controllers\Controller;
+use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\SchoolSettlement;
+use App\Models\Student;
 use App\Services\WhatsappService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -28,13 +31,45 @@ class FinanceController extends Controller
 
     public function verifySettlement(Request $r, SchoolSettlement $settlement): JsonResponse
     {
+        if ($settlement->status !== 'menunggu_verifikasi') {
+            return $this->error('Setoran sudah diproses sebelumnya.', 422);
+        }
+
         $data = $r->validate(['action' => ['required', 'in:approve,reject'], 'note' => ['nullable', 'string']]);
-        $settlement->update([
-            'status' => $data['action'] === 'approve' ? 'diverifikasi' : 'ditolak',
-            'verified_by' => $r->user()->id,
-            'verified_at' => now(),
-            'note' => $data['note'] ?? null,
-        ]);
+
+        DB::transaction(function () use ($r, $settlement, $data) {
+            $isApprove = $data['action'] === 'approve';
+
+            $settlement->update([
+                'status' => $isApprove ? 'diverifikasi' : 'ditolak',
+                'verified_by' => $r->user()->id,
+                'verified_at' => now(),
+                'note' => $data['note'] ?? null,
+            ]);
+
+            if ($isApprove) {
+                $settlement->loadMissing('invoices');
+
+                $invoiceIds = $settlement->invoices->pluck('id');
+                if ($invoiceIds->isNotEmpty()) {
+                    Invoice::whereIn('id', $invoiceIds)->update(['status' => 'lunas']);
+
+                    Payment::whereIn('invoice_id', $invoiceIds)
+                        ->where('status', '!=', 'diverifikasi')
+                        ->update([
+                            'status' => 'diverifikasi',
+                            'verified_at' => now(),
+                            'verified_by' => $r->user()->id,
+                        ]);
+
+                    $studentIds = $settlement->invoices->pluck('student_id')->filter()->unique();
+                    if ($studentIds->isNotEmpty()) {
+                        Student::whereIn('id', $studentIds)->update(['is_verified' => true]);
+                    }
+                }
+            }
+        });
+
         return $this->success(null, 'Setoran diproses.');
     }
 
@@ -66,6 +101,9 @@ class FinanceController extends Controller
     {
         $payment->load('invoice.student.parent');
         abort_unless(optional($payment->invoice->student)->registration_type === 'mandiri', 403);
+        if ($payment->status !== 'menunggu_verifikasi') {
+            return $this->error('Pembayaran sudah diproses sebelumnya.', 422);
+        }
         $data = $r->validate(['action' => ['required', 'in:approve,reject'], 'note' => ['nullable', 'string']]);
 
         if ($data['action'] === 'approve') {
