@@ -53,7 +53,7 @@ Terdapat *gap* ekspektasi alur pembayaran antara yang langsung ke Robotiku denga
 |:--:|---|---|:---:|:---:|
 | 1 | Sesi & Kelas | Pembuatan sesi manual & handle pending kelas | 23/09/2026 | Backlog |
 | 2 | Sesi & Finansial | Trigger invoice setelah target sesi kontrak selesai | 23/09/2026 | Backlog |
-| 3 | Finansial | Gambar bukti bayar tidak muncul (Storage/Bucket) | 23/09/2026 | Urgent |
+| 3 | Finansial | Gambar bukti bayar tidak muncul (Storage/Bucket) | 23/09/2026 | Resolved (Phase 1) |
 | 4 | Finansial | Tagihan sekolah tidak masuk ke modul finance | 23/09/2026 | Urgent |
 | 5 | Siswa | Fitur edit biodata murid (role sekolah, superadmin, admin) | 24/09/2026 | Backlog |
 | 6 | Siswa | Bug transisi status Cuti $\rightarrow$ Berhenti & ubah label ke Nonaktif | 24/09/2026 | Backlog |

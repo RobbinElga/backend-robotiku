@@ -51,5 +51,5 @@ Pada [`Setting.php`](file:///C:/Users/Fjontoldesk/Documents/Projects/robotiku-er
 
 ## 3. Dokumentasi Terkait
 
-- 📄 Laporan Baseline (Before): [`docs/performance-baseline-before.md`](file:///C:/Users/Fjontoldesk/Documents/Projects/robotiku-erp/backend-robotiku/docs/performance-baseline-before.md)
-- 📄 Laporan Komparasi (Before vs After): [`docs/performance-comparison-report.md`](file:///C:/Users/Fjontoldesk/Documents/Projects/robotiku-erp/backend-robotiku/docs/performance-comparison-report.md)
+- 📄 Laporan Baseline (Before): [baseline-before.md](baseline-before.md)
+- 📄 Laporan Komparasi (Before vs After): [comparison-report.md](comparison-report.md)
