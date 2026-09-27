@@ -219,4 +219,58 @@ class KeuanganDashboardTest extends TestCase
         $this->assertEquals('SDN TOP', $outstanding[0]['school_name']);
         $this->assertEquals(500000, $outstanding[0]['total']);
     }
+
+    public function test_dashboard_revenue_includes_verified_school_settlements(): void
+    {
+        $school = School::create(['name' => 'SDN Harapan Indah', 'commission_percent' => 20]);
+        $student = Student::create(['student_code' => 'S-MANDIRI', 'name' => 'Mandiri Boy', 'gender' => 'L', 'status' => 'aktif', 'registration_type' => 'mandiri']);
+        $invMandiri = Invoice::create(['invoice_number' => 'INV-MAN', 'student_id' => $student->id, 'base_amount' => 100000, 'total_amount' => 100000, 'status' => 'lunas']);
+        Payment::create(['invoice_id' => $invMandiri->id, 'status' => 'diverifikasi', 'verified_at' => now(), 'uploader_type' => 'parent', 'uploader_id' => 1]);
+
+        SchoolSettlement::create([
+            'school_id' => $school->id,
+            'gross_amount' => 500000,
+            'commission_percent' => 20,
+            'commission_amount' => 100000,
+            'net_amount' => 400000,
+            'proof_file' => 'settlements/test.jpg',
+            'status' => 'diverifikasi',
+            'verified_at' => now(),
+        ]);
+
+        $this->actingAsRole('admin_keuangan');
+        $res = $this->getJson('/api/v1/keuangan/dashboard')->assertOk();
+
+        // 100.000 mandiri + 400.000 net setoran sekolah = 500.000
+        $this->assertEquals(500000, $res->json('data.pendapatan_bulan_ini'));
+        $this->assertEquals(500000, $res->json('data.pendapatan_tahun_ini'));
+    }
+
+    public function test_dashboard_avoids_double_counting_invoice_when_settled(): void
+    {
+        $school = School::create(['name' => 'SDN Cemerlang', 'commission_percent' => 20]);
+        $student = Student::create(['student_code' => 'S-INST', 'name' => 'Instansi Kid', 'gender' => 'L', 'status' => 'aktif', 'school_id' => $school->id, 'registration_type' => 'instansi']);
+
+        $invoice = Invoice::create(['invoice_number' => 'INV-SETTLED', 'student_id' => $student->id, 'base_amount' => 200000, 'total_amount' => 200000, 'status' => 'lunas']);
+        Payment::create(['invoice_id' => $invoice->id, 'status' => 'diverifikasi', 'verified_at' => now(), 'uploader_type' => 'school_admin', 'uploader_id' => 1]);
+
+        $settlement = SchoolSettlement::create([
+            'school_id' => $school->id,
+            'gross_amount' => 200000,
+            'commission_percent' => 20,
+            'commission_amount' => 40000,
+            'net_amount' => 160000,
+            'proof_file' => 'settlements/test-2.jpg',
+            'status' => 'diverifikasi',
+            'verified_at' => now(),
+        ]);
+        $settlement->invoices()->attach($invoice->id);
+
+        $this->actingAsRole('admin_keuangan');
+        $res = $this->getJson('/api/v1/keuangan/dashboard')->assertOk();
+
+        // Ingin memastikan omzet yang dihitung adalah net_amount (160.000), BUKAN didobel dengan invoice (200.000 + 160.000 = 360.000)
+        $this->assertEquals(160000, $res->json('data.pendapatan_bulan_ini'));
+        $this->assertEquals(160000, $res->json('data.pendapatan_tahun_ini'));
+    }
 }
