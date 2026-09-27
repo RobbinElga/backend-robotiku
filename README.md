@@ -9,6 +9,7 @@ Backend untuk platform Robotiku yang menangani operasional sekolah, siswa, penda
 - Manajemen sekolah, siswa, kelas, program, periode, dan pengguna
 - Pendaftaran mandiri maupun melalui instansi
 - Pembayaran, tagihan, verifikasi pembayaran, dan dashboard keuangan
+- Serving bukti pembayaran & setoran secara inline preview dengan opsi download serta proteksi multi-tenant
 - Absensi karyawan serta sesi kelas
 - Progress siswa dan e-rapor dengan ekspor PDF/Excel
 - Impor dan ekspor data siswa menggunakan Excel
@@ -107,7 +108,14 @@ curl http://localhost:8000/api/v1/auth/me \
   -H "Authorization: Bearer <token>"
 ```
 
-> Detail payload, role, validasi, dan daftar endpoint dikelola di controller serta request class terkait. Dokumentasi API yang lebih lengkap sebaiknya ditempatkan terpisah dari README utama.
+> Detail payload, role, validasi, dan daftar endpoint dikelola di controller serta request class terkait.
+>
+> 📚 **Indeks Dokumentasi Teknis Lengkap:** [docs/README.md](docs/README.md)
+> - Panduan Onboarding & Arsitektur: [docs/architecture/onboarding.md](docs/architecture/onboarding.md)
+> - Spesifikasi Media & Bukti Bayar (Phase 1): [docs/features/media-serving.md](docs/features/media-serving.md)
+> - Spesifikasi REST API Landing & CMS: [docs/api/landing/](docs/api/landing/)
+> - Benchmark & Optimasi Performa: [docs/performance/walkthrough.md](docs/performance/walkthrough.md)
+> - Logbook Masalah & Roadmap: [docs/roadmap/problems-meeting-notes.md](docs/roadmap/problems-meeting-notes.md)
 
 ## Pengujian
 
