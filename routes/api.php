@@ -59,6 +59,7 @@ Route::prefix('v1')->group(function () {
 
     // Daftar mandiri + cek promo
     Route::get('public-media/{path}', [MediaController::class, 'publicShow'])->where('path', '.*')->middleware('throttle:api');
+    Route::get('media/{path}', [MediaController::class, 'show'])->where('path', '.*')->middleware('throttle:api');
     Route::post('promo/check', [PromoController::class, 'check'])->middleware('throttle:api');
     Route::post('daftar', [DaftarController::class, 'mandiri'])->middleware('throttle:api');
     Route::get('ukuran-kaos', [SettingController::class, 'shirtChart'])->middleware('throttle:api');
@@ -91,7 +92,6 @@ Route::prefix('v1')->group(function () {
     /* ---------- TERPROTEKSI (butuh token) ---------- */
     Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
-        Route::get('media/{path}', [MediaController::class, 'show'])->where('path', '.*');
         Route::get('notifikasi', [NotificationController::class, 'index']);
         Route::get('notifikasi/unread-count', [NotificationController::class, 'unreadCount']);
         Route::patch('notifikasi/read-all', [NotificationController::class, 'markAllRead']);
