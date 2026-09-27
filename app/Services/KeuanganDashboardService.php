@@ -96,7 +96,7 @@ class KeuanganDashboardService
                     ->from('school_settlement_invoices')
                     ->join('school_settlements', 'school_settlement_invoices.school_settlement_id', '=', 'school_settlements.id')
                     ->whereColumn('school_settlement_invoices.invoice_id', 'invoices.id')
-                    ->where('school_settlements.status', 'diverifikasi');
+                    ->whereIn('school_settlements.status', ['menunggu_verifikasi', 'diverifikasi']);
             })
             ->sum('invoices.total_amount');
 
@@ -158,7 +158,7 @@ class KeuanganDashboardService
                     ->from('school_settlement_invoices')
                     ->join('school_settlements', 'school_settlement_invoices.school_settlement_id', '=', 'school_settlements.id')
                     ->whereColumn('school_settlement_invoices.invoice_id', 'invoices.id')
-                    ->where('school_settlements.status', 'diverifikasi');
+                    ->whereIn('school_settlements.status', ['menunggu_verifikasi', 'diverifikasi']);
             })
             ->select(DB::raw("{$monthExprPayments} as month"), DB::raw('SUM(invoices.total_amount) as total'))
             ->groupBy('month')
