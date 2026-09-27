@@ -34,14 +34,12 @@ class PaymentVerificationController extends Controller
         return $this->success($payments, 'Daftar pembayaran.');
     }
 
-    /** Lihat file bukti (terproteksi, tidak via URL publik). */
+     /** Lihat file bukti (terproteksi, tidak via URL publik). */
     public function proof(Payment $payment): \Symfony\Component\HttpFoundation\BinaryFileResponse
     {
         abort_unless($payment->proof_file && Storage::disk('local')->exists($payment->proof_file), 404);
-
-        return response()->download(Storage::disk('local')->path($payment->proof_file));
+        return response()->file(Storage::disk('local')->path($payment->proof_file));
     }
-
     public function verify(VerifyPaymentRequest $request, Payment $payment): JsonResponse
     {
         if ($payment->status !== 'menunggu_verifikasi') {
