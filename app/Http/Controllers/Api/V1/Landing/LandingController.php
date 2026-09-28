@@ -60,8 +60,8 @@ class LandingController extends Controller
     {
         $request->validate(['image' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120']]);
 
-        $path = ImageStorage::storeWebp($request->file('image'), 'landing', 'public');
+        $path = ImageStorage::storeWebp($request->file('image'), 'landing');
 
-        return $this->success(['url' => asset('storage/' . $path), 'path' => $path], 'Gambar terunggah.');
+        return $this->success(['url' => '/api/v1/public-media/' . $path, 'path' => $path], 'Gambar terunggah.');
     }
 }

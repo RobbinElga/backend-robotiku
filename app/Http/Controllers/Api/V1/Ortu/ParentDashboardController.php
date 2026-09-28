@@ -8,6 +8,7 @@ use App\Models\Invoice;
 use App\Models\Kelas;
 use App\Models\Payment;
 use App\Models\Student;
+use App\Support\MediaStorage;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -81,7 +82,7 @@ class ParentDashboardController extends Controller
             return $this->error('Pembayaran untuk sekolah ini dikelola langsung oleh pihak sekolah.', 422);
         }
 
-        $path = $r->file('proof')->store('payments', 'local');
+        $path = MediaStorage::store($r->file('proof'), 'payments');
         Payment::create([
             'invoice_id'    => $invoice->id,
             'proof_file'    => $path,

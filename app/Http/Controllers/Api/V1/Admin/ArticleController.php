@@ -35,7 +35,7 @@ class ArticleController extends Controller
         $data['published_at'] = $data['status'] === 'publish' ? now() : null;
 
         if ($request->hasFile('cover')) {
-            $data['cover_image'] = ImageStorage::storeWebp($request->file('cover'), 'articles', 'public');
+            $data['cover_image'] = ImageStorage::storeWebp($request->file('cover'), 'articles');
         }
         unset($data['cover']);
 
@@ -63,7 +63,7 @@ class ArticleController extends Controller
         }
 
         if ($request->hasFile('cover')) {
-            $data['cover_image'] = ImageStorage::storeWebp($request->file('cover'), 'articles', 'public');
+            $data['cover_image'] = ImageStorage::storeWebp($request->file('cover'), 'articles');
         }
         unset($data['cover']);
 

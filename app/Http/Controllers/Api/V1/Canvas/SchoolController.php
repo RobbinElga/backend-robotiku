@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Requests\Canvas\SchoolRequest;
 use App\Models\Mou;
 use App\Support\ImageStorage;
+use App\Support\MediaStorage;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\Response;
 
 class SchoolController extends Controller
 {
@@ -157,7 +159,7 @@ class SchoolController extends Controller
             'note'         => ['nullable', 'string'],
         ]);
 
-        $path        = $request->file('file')->store('mou', 'local');
+        $path        = MediaStorage::store($request->file('file'), 'mou');
         $selfManaged = $request->boolean('self_managed');
 
         $mou = $school->mous()->create([
@@ -179,14 +181,18 @@ class SchoolController extends Controller
         return $this->success($mou, 'MoU ditambahkan.', 201);
     }
 
-    public function mouFile(\App\Models\Mou $mou)
+    public function mouFile(Mou $mou): Response
     {
-        return response()->download(\Illuminate\Support\Facades\Storage::disk('local')->path($mou->file));
+        abort_unless($mou->file, 404);
+
+        return MediaStorage::response($mou->file, true);
     }
 
     public function mouDestroy(Mou $mou): JsonResponse
     {
-        if ($mou->file) Storage::disk('local')->delete($mou->file);
+        if ($mou->file) {
+            MediaStorage::delete($mou->file);
+        }
         $mou->delete();
         return $this->success(null, 'MoU dihapus.');
     }

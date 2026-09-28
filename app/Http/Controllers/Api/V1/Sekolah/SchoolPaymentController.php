@@ -12,8 +12,8 @@ use App\Services\WhatsappService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use App\Support\MediaStorage;
+use Symfony\Component\HttpFoundation\Response;
 
 class SchoolPaymentController extends Controller
 {
@@ -68,7 +68,7 @@ class SchoolPaymentController extends Controller
     }
 
     /** Lihat file bukti pembayaran murid sekolah ini (inline preview). */
-    public function proof(Request $r, Payment $payment): BinaryFileResponse
+    public function proof(Request $r, Payment $payment): Response
     {
         $user = $r->user();
         if ($user instanceof SchoolAdmin) {
@@ -78,15 +78,9 @@ class SchoolPaymentController extends Controller
             abort(403, 'Khusus Admin Sekolah atau Staf Keuangan.');
         }
 
-        abort_unless($payment->proof_file && Storage::disk('local')->exists($payment->proof_file), 404);
+        abort_unless($payment->proof_file, 404);
 
-        if ($r->boolean('download')) {
-            return response()->download(Storage::disk('local')->path($payment->proof_file));
-        }
-
-        return response()->file(Storage::disk('local')->path($payment->proof_file), [
-            'Content-Disposition' => 'inline',
-        ]);
+        return MediaStorage::response($payment->proof_file, $r->boolean('download'));
     }
 
     /** Lapis-2: invoice lunas yang belum disetor + ringkasan komisi. */
@@ -131,7 +125,7 @@ class SchoolPaymentController extends Controller
 
         $gross = (int) $invoices->sum('total_amount');
         $comm  = (int) round($gross * ((float) $school->commission_percent / 100));
-        $path  = $r->file('proof')->store('settlements', 'local');
+        $path  = MediaStorage::store($r->file('proof'), 'settlements');
 
         $settlement = SchoolSettlement::create([
             'school_id' => $sid,
@@ -175,7 +169,7 @@ class SchoolPaymentController extends Controller
     }
 
     /** Lihat file bukti setoran sekolah ini (inline preview). */
-    public function settlementProof(Request $r, SchoolSettlement $settlement): BinaryFileResponse
+    public function settlementProof(Request $r, SchoolSettlement $settlement): Response
     {
         $user = $r->user();
         if ($user instanceof SchoolAdmin) {
@@ -184,15 +178,9 @@ class SchoolPaymentController extends Controller
             abort(403, 'Khusus Admin Sekolah atau Staf Keuangan.');
         }
 
-        abort_unless($settlement->proof_file && Storage::disk('local')->exists($settlement->proof_file), 404);
+        abort_unless($settlement->proof_file, 404);
 
-        if ($r->boolean('download')) {
-            return response()->download(Storage::disk('local')->path($settlement->proof_file));
-        }
-
-        return response()->file(Storage::disk('local')->path($settlement->proof_file), [
-            'Content-Disposition' => 'inline',
-        ]);
+        return MediaStorage::response($settlement->proof_file, $r->boolean('download'));
     }
 
     /** Riwayat pembayaran ortu yang sudah diproses (diverifikasi / ditolak). */

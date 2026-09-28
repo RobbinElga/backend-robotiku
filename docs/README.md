@@ -16,7 +16,8 @@ docs/
 ├── features/                      # Spesifikasi fitur & panduan implementasi teknis
 │   ├── media-serving.md           # Serving bukti pembayaran, setoran, & media (Phase 1)
 │   ├── finance-reconciliation.md  # Rekonsiliasi finansial & dashboard pendapatan (Phase 2)
-│   └── student-lifecycle.md       # Siklus hidup siswa: status, biodata, & visibilitas (Phase 3)
+│   ├── student-lifecycle.md       # Siklus hidup siswa: status, biodata, & visibilitas (Phase 3)
+│   └── cloud-storage.md           # Cloud object storage & presigned URL strategy (Phase 4)
 │
 ├── api/                           # Spesifikasi & kontrak REST API
 │   └── landing/                   # Dokumentasi API Landing CMS
@@ -68,19 +69,27 @@ Spesifikasi teknis siklus hidup status, edit biodata, dan visibilitas murid:
 - Endpoint pembaruan biodata untuk Admin (`/siswa/{student}`) dan Sekolah (`/sekolah/murid/{student}`) dengan pengamanan *multi-tenant isolation*.
 - Filter visibilitas dinamis `verification_status` (`verified`, `unverified`, `all`) untuk memunculkan pendaftar baru yang belum bayar/diverifikasi.
 
-### 5. [REST API Specs](api/landing/API_LANDING_SIMPEL.md)
+### 5. [Features: Cloud Object Storage & Presigned URL (Phase 4)](features/cloud-storage.md)
+Arsitektur penyimpanan berkas fleksibel (Dual Storage):
+- Dukungan penuh multi-provider: Local Storage, AWS S3, MinIO (self-hosted), dan Cloudflare R2 (zero egress fees).
+- Strategi **Presigned Temporary URL**: Otorisasi dilakukan di server backend, pengunduhan/penayangan berkas dialihkan via `302 Redirect` langsung ke Object Storage CDN untuk menghemat resource CPU dan bandwidth server PHP.
+- Layanan terpusat `MediaStorage`: Abstraksi `store`, `storeWebp`, `delete`, dan `response` yang transparan.
+- Mekanisme fallback otomatis ke disk lokal saat migrasi cloud untuk mencegah error 404 pada berkas lama.
+- Konversi WebP dalam memori (*in-memory buffer*) tanpa ketergantungan path filesystem lokal.
+
+### 6. [REST API Specs](api/landing/API_LANDING_SIMPEL.md)
 Katalog endpoint API untuk integrasi frontend dan layanan pihak ketiga:
 - [API Landing Ringkas](api/landing/API_LANDING_SIMPEL.md) & [Spesifikasi CMS Lengkap](api/landing/LANDING_CMS_API.md).
 - Format standar respons envelope JSON `{ status, data, message }`.
 - [OpenAPI YAML](api/landing/openapi.yaml) & [Koleksi Postman](api/landing/Robotiku-Landing.postman_collection.json).
 
-### 6. [Performance & Optimasi Query](performance/walkthrough.md)
+### 7. [Performance & Optimasi Query](performance/walkthrough.md)
 Analisis dan benchmark efisiensi backend:
 - [Walkthrough Optimasi](performance/walkthrough.md): Penambahan indeks gabungan pada tagihan, sekolah, dan registrasi.
 - [Evaluasi Baseline Awal](performance/baseline-before.md): Identifikasi *full table scan* dan *filesort*.
 - [Laporan Komparasi](performance/comparison-report.md): Pengurangan *latency* dan eliminasi *bottleneck* I/O database.
 
-### 7. [Roadmap & Logbook Masalah](roadmap/problems-meeting-notes.md)
+### 8. [Roadmap & Logbook Masalah](roadmap/problems-meeting-notes.md)
 Pelacakan kebutuhan bisnis dan catatan rapat operasional:
 - Matriks prioritas fitur (Urgent, High, Backlog, Resolved).
 - Catatan kebutuhan sesi manual, multi-skema pembayaran sekolah, dan siklus hidup siswa.

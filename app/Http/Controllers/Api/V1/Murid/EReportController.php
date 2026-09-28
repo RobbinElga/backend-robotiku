@@ -13,13 +13,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Storage;
+use App\Support\MediaStorage;
 use App\Models\Kelas;
 use App\Models\Student;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\{Alignment, Border, Fill};
-use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
+use PhpOffice\PhpSpreadsheet\Worksheet\{Drawing, MemoryDrawing};
 
 class EReportController extends Controller
 {
@@ -226,12 +227,12 @@ class EReportController extends Controller
         $user = $request->user();
 
         // hapus TTD lama bila ada
-        if ($user->signature_image && Storage::disk('local')->exists($user->signature_image)) {
-            Storage::disk('local')->delete($user->signature_image);
+        if ($user->signature_image) {
+            MediaStorage::delete($user->signature_image);
         }
 
         // Simpan APA ADANYA (PNG/JPG). JANGAN storeWebp — DomPDF tidak mendukung WebP.
-        $path = $request->file('signature')->store('signatures', 'local'); // folder terproteksi → /media
+        $path = MediaStorage::store($request->file('signature'), 'signatures');
         $user->update(['signature_image' => $path]);
 
         return $this->success(['signature_image' => $path], 'Tanda tangan diperbarui.');
@@ -242,10 +243,13 @@ class EReportController extends Controller
         $eReport->load(['student:id,name,student_code,school_grade,school_origin,school_id', 'student.school:id,name', 'trainer:id,name,signature_image', 'kelas:id,name']);
 
         $sig = null;
-        if (($sp = optional($eReport->trainer)->signature_image) && Storage::disk('local')->exists($sp)) {
-            $ext  = strtolower(pathinfo($sp, PATHINFO_EXTENSION));
-            $mime = ['png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg'][$ext] ?? 'image/png';
-            $sig  = 'data:' . $mime . ';base64,' . base64_encode(Storage::disk('local')->get($sp));
+        if ($sp = optional($eReport->trainer)->signature_image) {
+            $disk = MediaStorage::resolveDiskForFile($sp);
+            if ($disk) {
+                $ext  = strtolower(pathinfo($sp, PATHINFO_EXTENSION));
+                $mime = ['png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg'][$ext] ?? 'image/png';
+                $sig  = 'data:' . $mime . ';base64,' . base64_encode(Storage::disk($disk)->get($sp));
+            }
         }
 
         $logo = null;
@@ -414,15 +418,21 @@ class EReportController extends Controller
 
         if ($r && optional($r->trainer)->signature_image) {
             try {
-                $sp = Storage::disk('local')->path($r->trainer->signature_image);
-                if (is_file($sp)) {
-                    $sig = new Drawing();
-                    $sig->setPath($sp);
-                    $sig->setCoordinates('B34');
-                    $sig->setHeight(42);
-                    $sig->setWorksheet($s);
+                $disk = MediaStorage::resolveDiskForFile($r->trainer->signature_image);
+                if ($disk) {
+                    $raw = Storage::disk($disk)->get($r->trainer->signature_image);
+                    $img = @imagecreatefromstring($raw);
+                    if ($img) {
+                        $sig = new MemoryDrawing();
+                        $sig->setImageResource($img);
+                        $sig->setRenderingFunction(MemoryDrawing::RENDERING_DEFAULT);
+                        $sig->setMimeType(MemoryDrawing::MIMETYPE_DEFAULT);
+                        $sig->setCoordinates('B34');
+                        $sig->setHeight(42);
+                        $sig->setWorksheet($s);
+                    }
                 }
-            } catch (\Throwable $e) { /* webp bisa gagal di drawing — abaikan */
+            } catch (\Throwable $e) { /* webp/cloud bisa gagal di drawing — abaikan */
             }
         }
     }

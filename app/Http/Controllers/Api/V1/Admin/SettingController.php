@@ -4,10 +4,11 @@ namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
+use App\Services\WhatsappService;
+use App\Support\MediaStorage;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use App\Services\WhatsappService;
 
 class SettingController extends Controller
 {
@@ -86,7 +87,7 @@ class SettingController extends Controller
     {
         $request->validate(['image' => ['required', 'file', 'mimes:jpg,jpeg,png', 'max:5120']]);
 
-        $path = $request->file('image')->store('settings', 'local'); // simpan apa adanya (JPG/PNG), tak dikonversi
+        $path = MediaStorage::store($request->file('image'), 'settings'); // simpan apa adanya (JPG/PNG), tak dikonversi
 
         Setting::updateOrCreate(
             ['key' => 'shirt_size_chart'],

@@ -8,13 +8,11 @@ use Illuminate\Support\Str;
 
 class ImageStorage
 {
-    /** Simpan gambar → WebP (UUID) di disk local (privat). Kembalikan path relatif. */
-    public static function storeWebp(UploadedFile $file, string $dir, string $disk = 'local'): string   // ← 'public' → 'local'
+    /** Simpan gambar → WebP (UUID) di disk aktif (local atau s3/cloud). Kembalikan path relatif. */
+    public static function storeWebp(UploadedFile $file, string $dir, ?string $disk = null): string
     {
+        $diskName = $disk ?: config('filesystems.default', 'local');
         $path = $dir . '/' . Str::uuid() . '.webp';
-        $full = Storage::disk($disk)->path($path);
-
-        @mkdir(dirname($full), 0775, true);
 
         $ext = strtolower($file->getClientOriginalExtension());
         $src = match ($ext) {
@@ -25,14 +23,19 @@ class ImageStorage
         };
 
         if (! $src || ! function_exists('imagewebp')) {
-            return $file->storeAs($dir, Str::uuid() . '.' . $ext, $disk);
+            return $file->storeAs($dir, Str::uuid() . '.' . $ext, $diskName);
         }
 
         imagepalettetotruecolor($src);
         imagealphablending($src, true);
         imagesavealpha($src, true);
-        imagewebp($src, $full, 80);
+
+        ob_start();
+        imagewebp($src, null, 80);
+        $content = (string) ob_get_clean();
         imagedestroy($src);
+
+        Storage::disk($diskName)->put($path, $content);
 
         return $path;
     }

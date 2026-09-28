@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Models\School;
 use App\Services\RegistrationService;
 use App\Services\StudentImportService;
+use App\Support\MediaStorage;
 use App\Traits\ApiResponse;
 use DomainException;
 use Illuminate\Http\JsonResponse;
@@ -58,7 +59,7 @@ class DaftarController extends Controller
             'proof'         => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
         ]);
 
-        $path = $request->file('proof')->store('payments', 'local');
+        $path = MediaStorage::store($request->file('proof'), 'payments');
 
         \Illuminate\Support\Facades\DB::transaction(function () use ($data, $path) {
             foreach ($data['invoice_ids'] as $id) {
@@ -206,7 +207,7 @@ class DaftarController extends Controller
             'proof'         => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
         ]);
 
-        $path = $request->file('proof')->store('payments', 'local');
+        $path = MediaStorage::store($request->file('proof'), 'payments');
 
         DB::transaction(function () use ($data, $path) {
             foreach ($data['invoice_ids'] as $id) {
