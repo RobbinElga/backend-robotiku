@@ -7,6 +7,7 @@ use App\Models\Notification;
 use App\Models\Payment;
 use App\Models\PaymentStatusLog;
 use App\Models\User;
+use App\Support\MediaStorage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -17,11 +18,11 @@ class PaymentService
     public function uploadProof(Invoice $invoice, string $uploaderType, int $uploaderId, UploadedFile $file): Payment
     {
         return DB::transaction(function () use ($invoice, $uploaderType, $uploaderId, $file) {
-            // simpan dengan nama UUID (bukan nama asli), di disk private
-            $path = $file->storeAs(
+            // simpan dengan nama UUID (bukan nama asli), di disk aktif (local atau s3)
+            $path = MediaStorage::storeAs(
+                $file,
                 'payments',
-                Str::uuid() . '.' . $file->getClientOriginalExtension(),
-                'local'
+                Str::uuid() . '.' . $file->getClientOriginalExtension()
             );
 
             $payment = Payment::create([

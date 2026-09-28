@@ -12,8 +12,8 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use App\Support\MediaStorage;
+use Symfony\Component\HttpFoundation\Response;
 
 class FinanceController extends Controller
 {
@@ -74,17 +74,11 @@ class FinanceController extends Controller
     }
 
     /** Lihat file bukti setoran sekolah (inline preview). */
-    public function settlementProof(Request $r, SchoolSettlement $settlement): BinaryFileResponse
+    public function settlementProof(Request $r, SchoolSettlement $settlement): Response
     {
-        abort_unless($settlement->proof_file && Storage::disk('local')->exists($settlement->proof_file), 404);
+        abort_unless($settlement->proof_file, 404);
 
-        if ($r->boolean('download')) {
-            return response()->download(Storage::disk('local')->path($settlement->proof_file));
-        }
-
-        return response()->file(Storage::disk('local')->path($settlement->proof_file), [
-            'Content-Disposition' => 'inline',
-        ]);
+        return MediaStorage::response($settlement->proof_file, $r->boolean('download'));
     }
 
     /** Claim Pembayaran Kelas — pembayaran mandiri menunggu. */
