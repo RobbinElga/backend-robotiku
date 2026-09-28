@@ -5,7 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 
-return Application::configure(basePath: dirname(__DIR__))
+$app = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__ . '/../routes/web.php',
         api: __DIR__ . '/../routes/api.php',
@@ -21,4 +21,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn(Request $request) => $request->is('api/*'),
         );
-    })->create();
+    })
+    ->create();
+
+// Sibling folder: root/public_html
+$publicHtmlPath = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'public_html';
+
+if (is_dir($publicHtmlPath)) {
+    $app->usePublicPath($publicHtmlPath);
+}
+
+return $app;
