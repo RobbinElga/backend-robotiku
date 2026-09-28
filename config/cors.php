@@ -14,11 +14,14 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        env('FRONTEND_URL', 'http://localhost:3000'),
-    ],
+    'allowed_origins' => array_values(array_unique(array_filter(array_map(
+        'trim',
+        explode(',', env('FRONTEND_URL', 'http://localhost:3000'))
+    )))),
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        '#^https?://([a-z0-9-]+\.)*robotiku\.id$#i',
+    ],
 
     'allowed_headers' => ['*', 'Authorization', 'Content-Type', 'X-Requested-With', 'Accept', 'Origin'],
 
