@@ -36,6 +36,7 @@ class ProgressService
                 'name'         => $student->name,
                 'student_code' => $student->student_code,
                 'status'       => $student->status,
+                'school'       => $student->school?->name ?: $student->school_origin,
             ],
             'summary'     => $summary,
             'attendances' => $attendances->values(),

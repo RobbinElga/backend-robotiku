@@ -146,7 +146,7 @@ class SchoolPortalController extends Controller
         if (! $admin) return $this->error('Khusus Admin Sekolah.', 403);
         if ($student->school_id !== $admin->school_id) return $this->error('Murid bukan dari sekolah Anda.', 403);
 
-        $student->load(['parent:id,name,phone,greeting', 'program:id,name', 'classes:id,name']);
+        $student->load(['parent:id,name,phone,greeting,phone_alt', 'program:id,name', 'classes:id,name']);
 
         return $this->success($student, 'Detail murid.');
     }

@@ -95,4 +95,19 @@ class ProgressTest extends TestCase
         $this->getJson("/api/v1/manajemen/murid/{$student->id}/progress")->assertOk()
             ->assertJsonPath('data.summary.total_sesi', 3);
     }
+
+    public function test_progress_mengembalikan_nama_sekolah(): void
+    {
+        $school = School::create(['name' => 'SD Kreatif Harapan', 'pipeline_status' => 'sudah_mou']);
+        $parent = StudentParent::create(['name' => 'Ayah', 'phone' => '081299998888']);
+        [$student] = $this->studentWithAttendance([
+            'parent_id' => $parent->id,
+            'school_id' => $school->id,
+            'registration_type' => 'instansi',
+        ]);
+
+        $this->postJson('/api/v1/murid/progress', ['student_id' => $student->id, 'phone' => '6281299998888'])
+            ->assertOk()
+            ->assertJsonPath('data.student.school', 'SD Kreatif Harapan');
+    }
 }

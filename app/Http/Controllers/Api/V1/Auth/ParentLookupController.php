@@ -37,7 +37,7 @@ class ParentLookupController extends Controller
             ->when($request->filled('name'), function ($q) use ($request) {
                 $q->where('name', 'like', '%' . $request->name . '%');
             })
-            ->get(['id', 'student_code', 'name', 'parent_id', 'school_id', 'registration_type']);
+            ->get(['id', 'student_code', 'name', 'parent_id', 'school_id', 'registration_type', 'school_origin']);
 
         if ($students->isEmpty()) {
             return $this->error('Data tidak ditemukan. Periksa kembali nama anak atau nomor HP.', 404);
@@ -49,7 +49,7 @@ class ParentLookupController extends Controller
             'name'         => $s->name,
             'verified'     => (bool) $s->verified,
             'self_managed' => (bool) optional($s->school)->self_managed,
-            'school'       => optional($s->school)->name,
+            'school'       => optional($s->school)->name ?: $s->school_origin,
             'parent'       => [
                 'name'  => optional($s->parent)->name,
                 'phone' => optional($s->parent)->phone,

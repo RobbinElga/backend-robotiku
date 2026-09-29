@@ -82,4 +82,29 @@ class ParentLookupTest extends TestCase
         $this->postJson('/api/v1/auth/parent/lookup', ['name' => 'Anak Instansi'])
             ->assertStatus(404);
     }
+
+    public function test_lookup_mengembalikan_konteks_sekolah(): void
+    {
+        $parent = StudentParent::create(['name' => 'Siti', 'phone' => '081233334444']);
+        $school = \App\Models\School::create([
+            'name' => 'SDIT Robotika Pintar',
+            'pipeline_status' => 'sudah_mou',
+            'self_managed' => true,
+        ]);
+
+        Student::create([
+            'student_code'      => 'ROBO-INST-001',
+            'name'              => 'Anak Binaan',
+            'gender'            => 'L',
+            'parent_id'         => $parent->id,
+            'school_id'         => $school->id,
+            'status'            => 'aktif',
+            'registration_type' => 'instansi',
+        ]);
+
+        $res = $this->postJson('/api/v1/auth/parent/lookup', ['phone' => '081233334444'])
+            ->assertOk();
+
+        $this->assertSame('SDIT Robotika Pintar', $res->json('data.students.0.school'));
+    }
 }
