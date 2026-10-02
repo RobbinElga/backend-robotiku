@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Bayar\ParentTagihanRequest;
 use App\Http\Requests\Bayar\ParentUploadRequest;
 use App\Http\Requests\Bayar\SchoolUploadRequest;
+use App\Models\BankAccount;
 use App\Models\Invoice;
+use App\Models\School;
 use App\Models\SchoolAdmin;
 use App\Models\Student;
 use App\Services\PaymentService;
@@ -24,30 +26,72 @@ class PaymentController extends Controller
     /** Ortu: lihat tagihan & riwayat anak (verifikasi via HP). */
     public function parentTagihan(ParentTagihanRequest $request): JsonResponse
     {
-        $student = Student::with('parent')->find($request->student_id);
+        $student = Student::with(['parent', 'school'])->find($request->student_id);
 
         if (! $student || optional($student->parent)->phone !== Phone::normalize($request->phone)) {
             return $this->error('Data tidak cocok. Periksa nomor HP.', 403);
         }
 
-        $invoices = Invoice::where('student_id', $student->id)
-            ->with(['payments' => fn($q) => $q->latest()])
-            ->orderByDesc('created_at')
-            ->get();
+        $school = $student->school;
+        $scheme = $school?->payment_scheme ?? ($school?->self_managed ? School::SCHEME_V3_COLLECTIVE : School::SCHEME_V1_DIRECT);
+        $isV3   = $scheme === School::SCHEME_V3_COLLECTIVE;
+
+        if ($isV3) {
+            $schoolName = $school?->name ?? 'sekolah';
+            $paymentInfo = [
+                'scheme'      => School::SCHEME_V3_COLLECTIVE,
+                'type'        => 'collective',
+                'school_name' => $schoolName,
+                'banner'      => "Pembiayaan ekstrakurikuler dikelola langsung secara kolektif oleh pihak {$schoolName}. Tidak ada tagihan mandiri yang perlu dibayarkan.",
+            ];
+        } elseif ($scheme === School::SCHEME_V2_SCHOOL) {
+            $paymentInfo = [
+                'scheme'       => School::SCHEME_V2_SCHOOL,
+                'type'         => 'school_managed',
+                'school_name'  => $school?->name,
+                'bank_account' => $school?->bank_account,
+                'qris_image'   => $school?->qris_image ? asset('storage/' . $school->qris_image) : null,
+                'qris_path'    => $school?->qris_image,
+            ];
+        } else {
+            $paymentInfo = [
+                'scheme'        => School::SCHEME_V1_DIRECT,
+                'type'          => 'direct_robotiku',
+                'bank_accounts' => BankAccount::where('is_active', true)->orderBy('bank_name')->get(['id', 'bank_name', 'account_number', 'account_holder']),
+            ];
+        }
+
+        $invoices = $isV3
+            ? collect()
+            : Invoice::where('student_id', $student->id)
+                ->with(['payments' => fn($q) => $q->latest()])
+                ->orderByDesc('created_at')
+                ->get();
 
         return $this->success([
-            'student'  => ['id' => $student->id, 'name' => $student->name, 'student_code' => $student->student_code],
-            'invoices' => $invoices,
+            'student'      => [
+                'id'             => $student->id,
+                'name'           => $student->name,
+                'student_code'   => $student->student_code,
+                'school'         => $school?->name,
+                'payment_scheme' => $scheme,
+            ],
+            'payment_info' => $paymentInfo,
+            'invoices'     => $invoices->values(),
         ], 'Daftar tagihan.');
     }
 
     /** Ortu: upload bukti bayar (verifikasi via HP). */
     public function parentUpload(ParentUploadRequest $request): JsonResponse
     {
-        $invoice = Invoice::with('student.parent')->find($request->invoice_id);
+        $invoice = Invoice::with(['student.parent', 'student.school'])->find($request->invoice_id);
 
         if (! $invoice || optional($invoice->student->parent)->phone !== Phone::normalize($request->phone)) {
             return $this->error('Data tidak cocok. Periksa nomor HP.', 403);
+        }
+
+        if ($invoice->student?->school?->isV3() || optional($invoice->student?->school)->self_managed) {
+            return $this->error('Pembayaran untuk sekolah ini dikelola langsung secara kolektif oleh pihak sekolah.', 422);
         }
 
         if ($invoice->status === 'lunas') {

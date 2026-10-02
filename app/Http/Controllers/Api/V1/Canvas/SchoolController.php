@@ -144,7 +144,7 @@ class SchoolController extends Controller
     {
         $schools = School::where('is_mou', true)
             ->orderBy('name')
-            ->get(['id', 'name', 'registration_fee', 'price_per_cycle', 'self_managed']);
+            ->get(['id', 'name', 'registration_fee', 'price_per_cycle', 'self_managed', 'payment_scheme']);
 
         return $this->success($schools, 'Daftar sekolah MOU.');
     }
@@ -160,31 +160,34 @@ class SchoolController extends Controller
     public function mouStore(Request $request, \App\Models\School $school): JsonResponse
     {
         $data = $request->validate([
-            'file'         => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
-            'periods'      => ['required', 'integer', 'min:1'],
-            'self_managed' => ['nullable', 'boolean'],
-            'start_date'   => ['nullable', 'date'],
-            'end_date'     => ['nullable', 'date', 'after_or_equal:start_date'],
-            'note'         => ['nullable', 'string'],
+            'file'           => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:5120'],
+            'periods'        => ['required', 'integer', 'min:1'],
+            'payment_scheme' => ['nullable', 'string', 'in:v1_direct,v2_school,v3_collective'],
+            'self_managed'   => ['nullable', 'boolean'],
+            'start_date'     => ['nullable', 'date'],
+            'end_date'       => ['nullable', 'date', 'after_or_equal:start_date'],
+            'note'           => ['nullable', 'string'],
         ]);
 
-        $path        = MediaStorage::store($request->file('file'), 'mou');
-        $selfManaged = $request->boolean('self_managed');
+        $path          = MediaStorage::store($request->file('file'), 'mou');
+        $paymentScheme = $data['payment_scheme'] ?? ($request->boolean('self_managed') ? \App\Models\Mou::SCHEME_V3_COLLECTIVE : \App\Models\Mou::SCHEME_V1_DIRECT);
 
         $mou = $school->mous()->create([
-            'file'         => $path,
-            'periods'      => $data['periods'],
-            'self_managed' => $selfManaged,
-            'start_date'   => $data['start_date'] ?? null,
-            'end_date'     => $data['end_date'] ?? null,
-            'note'         => $data['note'] ?? null,
-            'created_by'   => $request->user()->id,
+            'file'           => $path,
+            'periods'        => $data['periods'],
+            'payment_scheme' => $paymentScheme,
+            'self_managed'   => $paymentScheme === \App\Models\Mou::SCHEME_V3_COLLECTIVE,
+            'start_date'     => $data['start_date'] ?? null,
+            'end_date'       => $data['end_date'] ?? null,
+            'note'           => $data['note'] ?? null,
+            'created_by'     => $request->user()->id,
         ]);
 
         $school->update([
             'is_mou'          => true,
             'pipeline_status' => 'sudah_mou',
-            'self_managed'    => $selfManaged, // cerminkan status terbaru ke sekolah
+            'payment_scheme'  => $paymentScheme,
+            'self_managed'    => $paymentScheme === \App\Models\School::SCHEME_V3_COLLECTIVE,
         ]);
 
         return $this->success($mou, 'MoU ditambahkan.', 201);

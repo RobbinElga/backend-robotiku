@@ -123,8 +123,8 @@ class RegistrationService
         return DB::transaction(function () use ($data, $schoolId) {
             $school = \App\Models\School::findOrFail($schoolId);
 
-            // Sekolah kelola pendaftaran & pembayaran sendiri
-            $selfManaged     = (bool) $school->self_managed;
+            // Sekolah skema V3 kolektif / kelola-sendiri
+            $isV3            = $school->isV3();
             $registrationFee = (float) $school->registration_fee;
             $pricePerCycle   = (float) $school->price_per_cycle;
             $quota           = (int) ($school->mous()->latest()->value('periods') ?? 0);
@@ -165,7 +165,7 @@ class RegistrationService
                 'period_quota'      => $quota ?: null,
                 'joined_at'         => now()->toDateString(),
                 'status'            => 'aktif',
-                'is_verified'       => $selfManaged,   // ← kelola-sendiri: langsung sah jadi siswa
+                'is_verified'       => $isV3,   // ← V3 kolektif: langsung sah jadi siswa; V1/V2 menunggu verifikasi bayar
                 'registration_type' => 'instansi',
             ]);
 
@@ -187,7 +187,7 @@ class RegistrationService
                 'discount_amount'  => 0,
                 'total_amount'     => $total,
                 'due_date'         => now()->addDays(14),
-                'status'           => $selfManaged ? 'lunas' : 'belum_bayar',  // ← langsung jadi kewajiban sekolah
+                'status'           => $isV3 ? 'lunas' : 'belum_bayar',  // ← V3 langsung lunas; V1/V2 menunggu pembayaran
             ]);
             $invoice->update(['invoice_number' => 'INV-' . now()->format('Ymd') . '-' . str_pad((string) $invoice->id, 5, '0', STR_PAD_LEFT)]);
 
