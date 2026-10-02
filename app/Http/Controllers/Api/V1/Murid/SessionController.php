@@ -53,6 +53,10 @@ class SessionController extends Controller
         $kelas = Kelas::findOrFail($data['class_id']);
         abort_unless($this->canManage($kelas, $request->user()), 403, 'Kelas ini bukan kelas Anda.');
 
+        if (! $kelas->students()->where('status', 'aktif')->exists()) {
+            return $this->error('Kelas belum memiliki murid aktif. Sesi tidak dapat dimulai.', 422);
+        }
+
         // hanya cek sesi LIVE yang masih berjalan hari ini
         if (Session::where('class_id', $kelas->id)->where('is_manual', false)
             ->whereDate('started_at', today())->where('status', 'started')->exists()
@@ -403,6 +407,10 @@ class SessionController extends Controller
         $kelas = Kelas::findOrFail($data['class_id']);
         $user = $request->user();
         abort_unless($this->canManage($kelas, $user), 403, 'Bukan kelas Anda.');
+
+        if (! $kelas->students()->where('status', 'aktif')->exists()) {
+            return $this->error('Kelas belum memiliki murid aktif. Sesi tidak dapat dimulai.', 422);
+        }
 
         $perPeriod = max(1, (int) ($kelas->meetings_per_period ?: 4));
         $week = (Session::where('class_id', $kelas->id)->count() % $perPeriod) + 1;
