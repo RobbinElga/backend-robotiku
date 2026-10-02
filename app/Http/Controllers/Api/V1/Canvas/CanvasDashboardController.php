@@ -117,8 +117,11 @@ class CanvasDashboardController extends Controller
     public function marketing(Request $request): JsonResponse
     {
         $userId = $request->user()->id;
-        $currentMonth = now()->month;
-        $currentYear = now()->year;
+        $period = $request->query('period', 'bulan_ini');
+        $isAllTime = $period === 'all_time';
+
+        $currentMonth = (int) $request->query('month', now()->month);
+        $currentYear = (int) $request->query('year', now()->year);
 
         // 1. Cari beban kerja aktif
         $sekolahAktif = School::where('created_by', $userId)
@@ -138,14 +141,22 @@ class CanvasDashboardController extends Controller
             return !$s->last_visit_date || Carbon::parse($s->last_visit_date)->lt(now()->subDays(7));
         });
 
-        // 3. MoU Bulan Ini (menggunakan log status)
+        // 3. MoU (Bulan Ini & Total Sepanjang Waktu)
+        $mouTotal = SchoolStatusLog::where('changed_by', $userId)
+            ->where('new_status', 'sudah_mou')
+            ->count();
+
         $mouBulanIni = SchoolStatusLog::where('changed_by', $userId)
             ->where('new_status', 'sudah_mou')
             ->whereMonth('created_at', $currentMonth)
             ->whereYear('created_at', $currentYear)
             ->count();
 
-        // 4. Kunjungan Bulan Ini
+        // 4. Kunjungan (Bulan Ini & Total Sepanjang Waktu)
+        $kunjunganTotal = SchoolNote::where('created_by', $userId)
+            ->where('kind', 'pertemuan')
+            ->count();
+
         $kunjunganBulanIni = SchoolNote::where('created_by', $userId)
             ->where('kind', 'pertemuan')
             ->whereMonth('created_at', $currentMonth)
@@ -179,9 +190,14 @@ class CanvasDashboardController extends Controller
             'kpi' => [
                 'prospekAktif'      => $prospekAktif,
                 'menungguFollowUp'  => $menungguFollowUp->count(),
-                'mouBulanIni'       => $mouBulanIni,
-                'kunjunganBulanIni' => $kunjunganBulanIni,
+                'mouBulanIni'       => $isAllTime ? $mouTotal : $mouBulanIni,
+                'mouTotal'          => $mouTotal,
+                'kunjunganBulanIni' => $isAllTime ? $kunjunganTotal : $kunjunganBulanIni,
+                'kunjunganTotal'    => $kunjunganTotal,
                 'targetKunjungan'   => (int) Setting::get('target_kunjungan_bulanan', 20),
+                'period'            => $isAllTime ? 'all_time' : 'bulan_ini',
+                'month'             => $currentMonth,
+                'year'              => $currentYear,
             ],
             'status'    => $status,
             'prioritas' => $prioritas

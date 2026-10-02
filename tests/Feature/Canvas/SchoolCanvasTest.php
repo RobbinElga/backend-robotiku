@@ -80,4 +80,18 @@ class SchoolCanvasTest extends TestCase
         $this->actingAsRole('trainer');
         $this->getJson('/api/v1/canvas/schools')->assertStatus(403);
     }
+
+    public function test_marketing_dashboard_periode_bulan_ini_dan_all_time(): void
+    {
+        $this->actingAsRole('marketing');
+
+        $resBulan = $this->getJson('/api/v1/canvas/dashboard-marketing');
+        $resBulan->assertOk()
+            ->assertJsonPath('data.kpi.period', 'bulan_ini');
+
+        $resAllTime = $this->getJson('/api/v1/canvas/dashboard-marketing?period=all_time');
+        $resAllTime->assertOk()
+            ->assertJsonPath('data.kpi.period', 'all_time');
+    }
 }
+
