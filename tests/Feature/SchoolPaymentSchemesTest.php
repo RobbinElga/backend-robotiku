@@ -9,6 +9,7 @@ use App\Models\Kelas;
 use App\Models\Mou;
 use App\Models\Program;
 use App\Models\School;
+use App\Models\SchoolAdmin;
 use App\Models\Session;
 use App\Models\Student;
 use App\Models\StudentParent;
@@ -18,6 +19,7 @@ use App\Services\RegistrationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class SchoolPaymentSchemesTest extends TestCase
@@ -104,6 +106,12 @@ class SchoolPaymentSchemesTest extends TestCase
         $this->assertSame(School::SCHEME_V1_DIRECT, $legacy->payment_scheme);
         $this->assertTrue($legacy->isV1());
 
+        // Setting self_managed = false on V2 school preserves V2
+        $v2preserve = School::create(['name' => 'SD V2 Keep', 'payment_scheme' => School::SCHEME_V2_SCHOOL]);
+        $v2preserve->self_managed = false;
+        $this->assertSame(School::SCHEME_V2_SCHOOL, $v2preserve->payment_scheme);
+        $this->assertTrue($v2preserve->isV2());
+
         // Same behavior on Mou model
         $mou = Mou::create([
             'school_id'      => $v1->id,
@@ -113,6 +121,11 @@ class SchoolPaymentSchemesTest extends TestCase
         ]);
         $this->assertTrue($mou->isV2());
         $this->assertFalse($mou->self_managed);
+
+        // Setting self_managed = false on V2 Mou preserves V2
+        $mou->self_managed = false;
+        $this->assertSame(Mou::SCHEME_V2_SCHOOL, $mou->payment_scheme);
+        $this->assertTrue($mou->isV2());
 
         $mou->self_managed = true;
         $this->assertSame(Mou::SCHEME_V3_COLLECTIVE, $mou->payment_scheme);
@@ -410,5 +423,35 @@ class SchoolPaymentSchemesTest extends TestCase
         $resV2->assertJsonCount(1, 'data.invoices');
         $resV2->assertJsonPath('data.payment_info.scheme', 'v2_school');
         $resV2->assertJsonPath('data.payment_info.bank_account', 'BCA 1234567890 an Sekolah Mitra');
+    }
+
+    public function test_school_admin_upload_blocked_for_v3_collective_school(): void
+    {
+        [$sV3, $pV3, $stV3] = $this->createStudentWithSchool(School::SCHEME_V3_COLLECTIVE);
+        $admin = SchoolAdmin::create([
+            'school_id' => $sV3->id,
+            'name'      => 'Admin Sekolah V3',
+            'email'     => 'admin-v3@sekolah.id',
+            'phone'     => '081299990001',
+            'password'  => bcrypt('password'),
+            'is_active' => true,
+        ]);
+        Sanctum::actingAs($admin);
+
+        $invoice = Invoice::create([
+            'invoice_number' => 'INV-V3-ADMIN',
+            'student_id'     => $stV3->id,
+            'base_amount'    => 150000,
+            'total_amount'   => 150000,
+            'status'         => 'belum_bayar',
+        ]);
+
+        $file = UploadedFile::fake()->image('bukti.jpg');
+        $res = $this->postJson("/api/v1/bayar/sekolah/invoices/{$invoice->id}/upload", [
+            'file' => $file,
+        ]);
+
+        $res->assertStatus(422);
+        $res->assertJsonPath('message', 'Pembayaran untuk sekolah ini dikelola langsung secara kolektif oleh pihak sekolah.');
     }
 }
