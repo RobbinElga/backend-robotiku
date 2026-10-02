@@ -21,7 +21,7 @@ class PaymentController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private PaymentService $payments) {}
+    public function __construct(private readonly PaymentService $payments) {}
 
     /** Ortu: lihat tagihan & riwayat anak (verifikasi via HP). */
     public function parentTagihan(ParentTagihanRequest $request): JsonResponse
@@ -133,9 +133,12 @@ class PaymentController extends Controller
             return $this->error('Akses ditolak: khusus Admin Sekolah.', 403);
         }
 
-        $invoice->load('student');
-        if ($invoice->student->school_id !== $admin->school_id) {
+        $invoice->load('student.school');
+        if ($invoice->student?->school_id !== $admin->school_id) {
             return $this->error('Invoice bukan milik sekolah Anda.', 403);
+        }
+        if ($invoice->student?->school?->isV3()) {
+            return $this->error('Pembayaran untuk sekolah ini dikelola langsung secara kolektif oleh pihak sekolah.', 422);
         }
         if ($invoice->status === 'lunas') {
             return $this->error('Invoice sudah lunas.', 422);

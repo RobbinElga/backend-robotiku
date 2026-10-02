@@ -25,7 +25,7 @@ class ParentDashboardController extends Controller
         $s = Student::with('program:id,name', 'school')->findOrFail($data['student_id']);
 
         $school = $s->school;
-        $scheme = $school?->payment_scheme ?? ($school?->self_managed ? School::SCHEME_V3_COLLECTIVE : School::SCHEME_V1_DIRECT);
+        $scheme = $school?->payment_scheme ?? School::SCHEME_V1_DIRECT;
         $selfManaged = $scheme === School::SCHEME_V3_COLLECTIVE;
 
         // pertemuan per periode mengikuti kelas siswa (default 4 bila belum ada kelas)
@@ -111,7 +111,7 @@ class ParentDashboardController extends Controller
         $invoice = Invoice::with('student.school')->findOrFail($data['invoice_id']);
 
         // pengaman: sekolah kelola-sendiri / V3 kolektif tidak menerima pembayaran dari ortu
-        if ($invoice->student?->school?->isV3() || optional($invoice->student?->school)->self_managed) {
+        if ($invoice->student?->school?->isV3()) {
             return $this->error('Pembayaran untuk sekolah ini dikelola langsung secara kolektif oleh pihak sekolah.', 422);
         }
 

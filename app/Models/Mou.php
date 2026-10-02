@@ -35,11 +35,12 @@ class Mou extends Model
     {
         return Attribute::make(
             get: fn ($value, array $attributes) => ($attributes['payment_scheme'] ?? null) === self::SCHEME_V3_COLLECTIVE || (!empty($attributes['self_managed']) && empty($attributes['payment_scheme'])),
-            set: function ($value) {
+            set: function ($value, array $attributes = []) {
                 $bool = (bool) $value;
+                $current = $attributes['payment_scheme'] ?? self::SCHEME_V1_DIRECT;
                 return [
                     'self_managed'   => $bool,
-                    'payment_scheme' => $bool ? self::SCHEME_V3_COLLECTIVE : self::SCHEME_V1_DIRECT,
+                    'payment_scheme' => $bool ? self::SCHEME_V3_COLLECTIVE : ($current === self::SCHEME_V3_COLLECTIVE ? self::SCHEME_V1_DIRECT : $current),
                 ];
             }
         );
