@@ -85,8 +85,9 @@ class DaftarController extends Controller
         $data = $this->validateInstansi($request);
         $schoolId = $this->ensureMouSchool($data['school_id']);
 
-        // Sekolah kelola pendaftaran sendiri → tidak bisa daftar lewat sistem
-        if (School::whereKey($schoolId)->value('self_managed')) {
+        // Sekolah skema V3 / kelola pendaftaran sendiri → tidak bisa daftar lewat sistem
+        $school = School::find($schoolId);
+        if ($school && ($school->isV3() || $school->self_managed)) {
             return $this->error('Pendaftaran untuk sekolah ini dilakukan langsung melalui pihak sekolah, bukan melalui sistem.', 422);
         }
 

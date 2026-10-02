@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api\V1\Ortu;
 
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\BankAccount;
 use App\Models\Invoice;
 use App\Models\Kelas;
 use App\Models\Payment;
+use App\Models\School;
 use App\Models\Student;
 use App\Support\MediaStorage;
 use App\Traits\ApiResponse;
@@ -20,9 +22,11 @@ class ParentDashboardController extends Controller
     public function index(Request $r): JsonResponse
     {
         $data = $r->validate(['student_id' => ['required', 'exists:students,id']]);
-        $s = Student::with('program:id,name', 'school:id,name,self_managed')->findOrFail($data['student_id']);
+        $s = Student::with('program:id,name', 'school')->findOrFail($data['student_id']);
 
-        $selfManaged = (bool) optional($s->school)->self_managed;
+        $school = $s->school;
+        $scheme = $school?->payment_scheme ?? ($school?->self_managed ? School::SCHEME_V3_COLLECTIVE : School::SCHEME_V1_DIRECT);
+        $selfManaged = $scheme === School::SCHEME_V3_COLLECTIVE;
 
         // pertemuan per periode mengikuti kelas siswa (default 4 bila belum ada kelas)
         $perPeriod = (int) (Kelas::whereHas('students', fn($q) => $q->where('students.id', $s->id))
@@ -35,22 +39,51 @@ class ParentDashboardController extends Controller
             ->pluck('c', 'status');
         $hadir = (int) ($att['hadir'] ?? 0);
 
-        // Sekolah kelola-sendiri → ortu tidak melihat tagihan sama sekali
+        // Sekolah kelola-sendiri / V3 kolektif -> ortu tidak melihat tagihan sama sekali
         $invoices = $selfManaged
             ? collect()
             : Invoice::where('student_id', $s->id)->latest()->get(['id', 'invoice_number', 'total_amount', 'status', 'due_date']);
 
+        // Payment info branched per scheme
+        if ($scheme === School::SCHEME_V3_COLLECTIVE) {
+            $schoolName = $school?->name ?? 'sekolah';
+            $paymentInfo = [
+                'scheme'      => School::SCHEME_V3_COLLECTIVE,
+                'type'        => 'collective',
+                'school_name' => $schoolName,
+                'banner'      => "Pembiayaan ekstrakurikuler dikelola langsung secara kolektif oleh pihak {$schoolName}. Tidak ada tagihan mandiri yang perlu dibayarkan.",
+            ];
+        } elseif ($scheme === School::SCHEME_V2_SCHOOL) {
+            $paymentInfo = [
+                'scheme'       => School::SCHEME_V2_SCHOOL,
+                'type'         => 'school_managed',
+                'school_name'  => $school?->name,
+                'bank_account' => $school?->bank_account,
+                'qris_image'   => $school?->qris_image ? asset('storage/' . $school->qris_image) : null,
+                'qris_path'    => $school?->qris_image,
+            ];
+        } else {
+            $paymentInfo = [
+                'scheme'        => School::SCHEME_V1_DIRECT,
+                'type'          => 'direct_robotiku',
+                'bank_accounts' => BankAccount::where('is_active', true)->orderBy('bank_name')->get(['id', 'bank_name', 'account_number', 'account_holder']),
+            ];
+        }
+
         return $this->success([
             'student' => [
-                'name'         => $s->name,
-                'student_code' => $s->student_code,
-                'program'      => $s->program?->name,
-                'school'       => $s->school?->name,
-                'status'       => $s->status,
-                'period_quota' => $s->period_quota,
-                'self_managed' => $selfManaged,
+                'name'           => $s->name,
+                'student_code'   => $s->student_code,
+                'program'        => $s->program?->name,
+                'school'         => $school?->name,
+                'status'         => $s->status,
+                'period_quota'   => $s->period_quota,
+                'self_managed'   => $selfManaged,
+                'payment_scheme' => $scheme,
             ],
-            'self_managed' => $selfManaged,
+            'self_managed'   => $selfManaged,
+            'payment_scheme' => $scheme,
+            'payment_info'   => $paymentInfo,
             'kpi' => [
                 'hadir'           => $hadir,
                 'periode_selesai' => intdiv($hadir, $perPeriod),
@@ -77,9 +110,9 @@ class ParentDashboardController extends Controller
 
         $invoice = Invoice::with('student.school')->findOrFail($data['invoice_id']);
 
-        // pengaman: sekolah kelola-sendiri tidak menerima pembayaran dari ortu
-        if (optional($invoice->student->school)->self_managed) {
-            return $this->error('Pembayaran untuk sekolah ini dikelola langsung oleh pihak sekolah.', 422);
+        // pengaman: sekolah kelola-sendiri / V3 kolektif tidak menerima pembayaran dari ortu
+        if ($invoice->student?->school?->isV3() || optional($invoice->student?->school)->self_managed) {
+            return $this->error('Pembayaran untuk sekolah ini dikelola langsung secara kolektif oleh pihak sekolah.', 422);
         }
 
         $path = MediaStorage::store($r->file('proof'), 'payments');

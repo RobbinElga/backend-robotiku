@@ -24,18 +24,22 @@ class ParentLookupController extends Controller
                 $q->where('registration_type', 'mandiri')
                     ->orWhere(function ($x) {
                         $x->where('registration_type', 'instansi')
-                            ->whereHas('school', fn($s) => $s->where('self_managed', true));
+                            ->whereHas('school', fn($s) => $s->where('payment_scheme', 'v3_collective')->orWhere('self_managed', true));
                     });
             })
             ->whereNotNull('parent_id')
-            ->with(['parent:id,name,phone', 'school:id,name,self_managed'])
+            ->with(['parent:id,name,phone', 'school:id,name,self_managed,payment_scheme'])
             ->withExists(['invoices as verified' => fn($q) => $q->where('status', 'lunas')])
             ->when($request->filled('phone'), function ($q) use ($request) {
                 $phone = Phone::normalize($request->phone);
                 $q->whereHas('parent', fn($p) => $p->where('phone', $phone));
             })
             ->when($request->filled('name'), function ($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->name . '%');
+                $query = $request->name;
+                $q->where(function ($sub) use ($query) {
+                    $sub->where('name', 'like', '%' . $query . '%')
+                        ->orWhere('student_code', $query);
+                });
             })
             ->get(['id', 'student_code', 'name', 'parent_id', 'school_id', 'registration_type', 'school_origin']);
 
@@ -44,13 +48,14 @@ class ParentLookupController extends Controller
         }
 
         $rows = $students->map(fn($s) => [
-            'id'           => $s->id,
-            'student_code' => $s->student_code,
-            'name'         => $s->name,
-            'verified'     => (bool) $s->verified,
-            'self_managed' => (bool) optional($s->school)->self_managed,
-            'school'       => optional($s->school)->name ?: $s->school_origin,
-            'parent'       => [
+            'id'             => $s->id,
+            'student_code'   => $s->student_code,
+            'name'           => $s->name,
+            'verified'       => (bool) $s->verified,
+            'self_managed'   => (bool) optional($s->school)->self_managed,
+            'payment_scheme' => optional($s->school)->payment_scheme ?? (optional($s->school)->self_managed ? 'v3_collective' : 'v1_direct'),
+            'school'         => optional($s->school)->name ?: $s->school_origin,
+            'parent'         => [
                 'name'  => optional($s->parent)->name,
                 'phone' => optional($s->parent)->phone,
             ],

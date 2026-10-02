@@ -29,6 +29,8 @@ class SchoolRequest extends FormRequest
             'latitude'        => ['nullable', 'numeric', 'between:-90,90'],
             'longitude'       => ['nullable', 'numeric', 'between:-180,180'],
             'geofence_radius' => ['nullable', 'integer', 'min:50', 'max:5000'],
+            'payment_scheme'  => ['nullable', 'string', 'in:v1_direct,v2_school,v3_collective'],
+            'self_managed'    => ['nullable', 'boolean'],
         ];
     }
 }

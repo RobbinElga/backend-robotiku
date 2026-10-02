@@ -60,6 +60,9 @@ class BillingCycleService
         }
 
         return DB::transaction(function () use ($student, $next) {
+            $student->loadMissing(['school', 'program']);
+            $isV3 = $student->school?->isV3() || (bool) optional($student->school)->self_managed;
+
             $cycle = $this->cyclePrice($student);
 
             $month = BillingMonth::create([
@@ -79,11 +82,13 @@ class BillingCycleService
                 'discount_amount' => 0,
                 'total_amount' => $cycle,
                 'due_date' => now()->addDays(7),
-                'status' => 'belum_bayar',
+                'status' => $isV3 ? 'lunas' : 'belum_bayar',
             ]);
             $invoice->update(['invoice_number' => 'INV-'.now()->format('Ymd').'-'.str_pad((string) $invoice->id, 5, '0', STR_PAD_LEFT)]);
 
-            $this->notifyNewInvoice($student->name, $invoice->invoice_number);
+            if (! $isV3) {
+                $this->notifyNewInvoice($student->name, $invoice->invoice_number);
+            }
 
             return $invoice->fresh();
         });
@@ -148,6 +153,9 @@ class BillingCycleService
                 return null; // sudah pernah ditagih (hindari dobel bila absensi diedit)
             }
 
+            $student->loadMissing(['school', 'program']);
+            $isV3 = $student->school?->isV3() || (bool) optional($student->school)->self_managed;
+
             $price = $this->cyclePrice($student); // instansi→harga sekolah, mandiri→harga program
 
             $month = BillingMonth::create([
@@ -167,11 +175,13 @@ class BillingCycleService
                 'discount_amount' => 0,
                 'total_amount' => $price,
                 'due_date' => now()->addDays(7),
-                'status' => 'belum_bayar',
+                'status' => $isV3 ? 'lunas' : 'belum_bayar',
             ]);
             $invoice->update(['invoice_number' => 'INV-'.now()->format('Ymd').'-'.str_pad((string) $invoice->id, 5, '0', STR_PAD_LEFT)]);
 
-            $this->notifyNewInvoice($student->name, $invoice->invoice_number);
+            if (! $isV3) {
+                $this->notifyNewInvoice($student->name, $invoice->invoice_number);
+            }
 
             return $invoice->fresh();
         });
@@ -225,9 +235,9 @@ class BillingCycleService
                 return null;
             }
 
-            // Sekolah kelola-sendiri → tagihan langsung LUNAS (jadi kewajiban sekolah, siap disetor)
+            // Sekolah skema V3 / self_managed → tagihan langsung LUNAS (jadi kewajiban sekolah, siap disetor)
             $lockedStudent->loadMissing(['school', 'program']);
-            $selfManaged = (bool) optional($lockedStudent->school)->self_managed;
+            $isV3 = $lockedStudent->school?->isV3() || (bool) optional($lockedStudent->school)->self_managed;
 
             $price = $this->cyclePrice($lockedStudent);
 
@@ -248,12 +258,12 @@ class BillingCycleService
                 'discount_amount' => 0,
                 'total_amount' => $price,
                 'due_date' => now()->addDays(7),
-                'status' => $selfManaged ? 'lunas' : 'belum_bayar',
+                'status' => $isV3 ? 'lunas' : 'belum_bayar',
             ]);
             $invoice->update(['invoice_number' => 'INV-'.now()->format('Ymd').'-'.str_pad((string) $invoice->id, 5, '0', STR_PAD_LEFT)]);
 
             // notifikasi tagihan hanya untuk yang perlu ditagih ke ortu
-            if (! $selfManaged) {
+            if (! $isV3) {
                 $this->notifyNewInvoice($lockedStudent->name, $invoice->invoice_number);
             }
 
@@ -350,9 +360,9 @@ class BillingCycleService
                 return null;
             }
 
-            // Deteksi skema self_managed
+            // Deteksi skema V3 / self_managed
             $lockedStudent->loadMissing(['school', 'program']);
-            $selfManaged = (bool) optional($lockedStudent->school)->self_managed;
+            $isV3 = $lockedStudent->school?->isV3() || (bool) optional($lockedStudent->school)->self_managed;
 
             $price = $this->cyclePrice($lockedStudent);
 
@@ -373,14 +383,14 @@ class BillingCycleService
                 'discount_amount' => 0,
                 'total_amount' => $price,
                 'due_date' => now()->addDays(7),
-                'status' => $selfManaged ? 'lunas' : 'belum_bayar',
+                'status' => $isV3 ? 'lunas' : 'belum_bayar',
             ]);
             $invoice->update([
                 'invoice_number' => 'INV-'.now()->format('Ymd').'-'.str_pad((string) $invoice->id, 5, '0', STR_PAD_LEFT),
             ]);
 
-            // Notifikasi hanya untuk non-self-managed
-            if (! $selfManaged) {
+            // Notifikasi hanya untuk non-V3 (V1 dan V2)
+            if (! $isV3) {
                 $this->notifyNewInvoice($lockedStudent->name, $invoice->invoice_number);
             }
 
