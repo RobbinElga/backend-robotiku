@@ -4,6 +4,7 @@ namespace Tests\Feature\Murid;
 
 use App\Models\Kelas;
 use App\Models\Session;
+use App\Models\Student;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -28,6 +29,15 @@ class ManualSessionTest extends TestCase
             'trainer_id' => $trainer->id,
             'meetings_per_period' => 4,
         ]);
+
+        $student = Student::create([
+            'student_code' => 'STD-' . uniqid(),
+            'name' => 'Murid A',
+            'gender' => 'L',
+            'status' => 'aktif',
+            'registration_type' => 'mandiri',
+        ]);
+        $kelas->students()->attach($student->id, ['joined_at' => now()]);
 
         Sanctum::actingAs($trainer);
 

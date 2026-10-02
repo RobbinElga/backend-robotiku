@@ -45,6 +45,10 @@ class SessionController extends Controller
         $kelas = Kelas::findOrFail($data['class_id']);
         abort_unless($this->isTrainerOf($kelas, $request->user()->id), 403, 'Kelas ini bukan kelas Anda.');
 
+        if (! $kelas->students()->where('status', 'aktif')->exists()) {
+            return $this->error('Kelas belum memiliki murid aktif. Sesi tidak dapat dimulai.', 422);
+        }
+
         if (Session::where('class_id', $kelas->id)->whereDate('started_at', today())->where('status', 'started')->exists()) {
             return $this->error('Presensi sesi ini sudah dimulai.', 422);
         }
